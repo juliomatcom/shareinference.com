@@ -13,4 +13,5 @@ This wiki is the source of truth for agents. Code follows it; a change to a flow
 | [economy.md](economy.md)                 | Credits, prices, settlement, free tier and negative balances, anti-abuse rules          |
 | [data-model.md](data-model.md)           | Tables, invariants, what is never stored                                                |
 | [web.md](web.md)                         | `apps/web`: pages, public vs gated, design reference, provider Share page               |
+| [logging.md](logging.md)                 | Shared logger library, JSON envelope, `LOG_LEVEL`, what is logged, what never is        |
 | [setup.md](setup.md)                     | `.env` variables, compose services and profiles, CLI commands                           |

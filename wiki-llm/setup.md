@@ -2,31 +2,71 @@
 
 ## Run
 
-`cp .env.example .env`, fill the required values, `docker compose up -d --build`. Web on `http://localhost:3000`, api on `http://localhost:4000`. Migrations run on api start (and via `pnpm db:migrate`).
+`cp .env.example .env`, fill the required values, `docker compose up -d --build`. Web on `http://localhost:4400`, api on `http://localhost:4401` (host ports `WEB_PORT` / `API_PORT`; container ports stay 3000 / 4000). Migrations run on api start (and via `pnpm db:migrate`).
+
+Dev with live reload: `pnpm dev` starts the `db` container, then runs the api (`tsx watch`, port 4401) and web (`next dev`, port 4400) on the host; stop the compose `api`/`web` first (same ports). The api reads the root `.env`, so for `pnpm dev` it holds host values: `DATABASE_URL` with `127.0.0.1` (not `db`, which resolves only inside compose) and `PORT=4401`.
 
 ## Environment (`.env`, documented in `.env.example`)
 
-| Variable                                   | Required | Purpose                                                                 |
-| ------------------------------------------ | -------- | ----------------------------------------------------------------------- |
-| `COMPOSE_PROFILES`                         | no       | `localdb` starts the bundled Postgres; empty when using an external one |
-| `POSTGRES_PASSWORD`                        | localdb  | Password of the bundled Postgres                                        |
-| `DATABASE_URL`                             | yes      | Postgres connection URL (include `sslmode` for managed databases)       |
-| `DB_POOL_MAX`                              | no       | Max pool size (default 10)                                              |
-| `WEB_ORIGIN`                               | yes      | Public origin of the web app (cookie, redirects)                        |
-| `API_PUBLIC_URL`                           | yes      | Public URL of the api (consumers, provider WebSocket)                   |
-| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | yes      | GitHub OAuth app                                                        |
-| `SIGNUP_GRANT_CREDITS`                     | no       | Credits granted at sign-up (default 0)                                  |
-| `LOG_LEVEL`                                | no       | `debug` / `info` (default) / `warn` / `error`                           |
+| Variable                                   | Required | Purpose                                                                                                                                                                    |
+| ------------------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `COMPOSE_PROFILES`                         | no       | `localdb` starts the bundled Postgres; empty when using an external one                                                                                                    |
+| `POSTGRES_PASSWORD`                        | localdb  | Password of the bundled Postgres; empty by default (db refuses to start); fixed at first volume init                                                                       |
+| `DATABASE_URL`                             | yes      | Postgres connection URL (include `sslmode` for managed databases)                                                                                                          |
+| `DB_POOL_MAX`                              | no       | Max pool size, 2 or more (default 10)                                                                                                                                      |
+| `WEB_ORIGIN`                               | yes      | Public origin of the web app (cookie, redirects, CSRF `Origin` check); no path                                                                                             |
+| `API_PUBLIC_URL`                           | yes      | Public URL of the api (consumers, provider WebSocket)                                                                                                                      |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | yes      | GitHub OAuth app (below); the api refuses to start without them                                                                                                            |
+| `SIGNUP_GRANT_CREDITS`                     | no       | Credits granted at sign-up as a `grant` ledger entry; integer >= 0 (default 0)                                                                                             |
+| `BIND_ADDR`, `WEB_PORT`, `API_PORT`        | no       | Compose only (the app never reads them): host bind address (default `127.0.0.1`) and ports (4400/4401)                                                                     |
+| `LOG_LEVEL`                                | no       | `debug` / `info` (default) / `warn` / `error`                                                                                                                              |
+| `TRUST_PROXY`                              | no       | `true` / `false` (default): per-IP limits read `X-Real-IP` (set by Caddy) instead of the socket; production only                                                           |
+| `DOMAIN`, `API_DOMAIN`                     | prod     | Compose only (`compose.prod.yaml`): the website host and the api host Caddy serves (`shareinference.com`, `api.shareinference.com`); locally `localhost` / `api.localhost` |
+| `HTTP_PORT`, `HTTPS_PORT`                  | no       | Compose only: host ports of Caddy (default 80 / 443; override to test locally)                                                                                             |
+| `IMAGE_TAG`                                | prod     | Compose only: tag of the prebuilt images (`shareinference-api:<tag>`); `ops/deploy.sh` writes it to `.deploy.env`; default `latest`                                        |
+
+`BIND_ADDR` is the host address the web and api ports are published on. Keep the loopback default; set it to the VM's NIC address (e.g. `10.0.2.15`) only when the stack runs inside a VM with NAT port forwarding from the host, and never to `0.0.0.0` on a public machine. The `db` port always stays on `127.0.0.1`.
 
 Tests: `TEST_DATABASE_URL` (optional; DB tests skip without it).
+
+The api container receives only the variables it reads (explicit `environment:` in `compose.yaml`), never `POSTGRES_PASSWORD`. It listens on a fixed port 4000 inside the container. The web image takes the build arg `API_INTERNAL_URL` (default `http://localhost:4401`, for running web outside Docker; compose sets `http://api:4000`): Next resolves the `/api/*` rewrite at build time, so changing it needs a rebuild. The `/docs` pages are built from the repo's `docs/` at image build time (editing a doc needs a rebuild of `web`). The `db` port `127.0.0.1:5432` is published for development and tests only; `compose.prod.yaml` removes it.
+
+## GitHub OAuth app
+
+Sign-in is GitHub only. On GitHub: Settings -> Developer settings -> OAuth Apps -> New OAuth App.
+
+- Homepage URL: the value of `WEB_ORIGIN` (e.g. `http://localhost:4400`).
+- Authorization callback URL: `<WEB_ORIGIN>/api/auth/github/callback` (the api route `/auth/github/callback` reached through the web rewrite). The api sends this exact value as `redirect_uri`.
+- Copy the Client ID into `GITHUB_CLIENT_ID`, generate a client secret into `GITHUB_CLIENT_SECRET`, restart the api (`docker compose up -d`). Scope requested: `read:user`.
+- Changing `WEB_ORIGIN` (another host or port) means updating the callback URL on GitHub.
+- The api sends no `Strict-Transport-Security` header and no `upgrade-insecure-requests` CSP directive (Helmet's defaults are switched off): the TLS terminator in front (Caddy in production) owns HSTS, and plain-http use (localhost, a VM) must keep working.
+- Per-IP limits live in the api (rules in [api.md](api.md) "Limits"); Caddy has no rate limiter. They identify the caller by `X-Real-IP` only when `TRUST_PROXY=true`.
 
 ## Database
 
 - Bundled: service `db` (Postgres 17) under profile `localdb`, data in named volume `db-data` — survives restarts and `docker compose down`; only `docker compose down -v` deletes it.
 - External (e.g. GCP Cloud SQL for PostgreSQL 17): remove `localdb` from `COMPOSE_PROFILES`, set `DATABASE_URL` (TLS required; private IP or Cloud SQL Auth Proxy).
 
-## CLI (root `pnpm` scripts, run against `DATABASE_URL`)
+## CLI (root `pnpm` scripts)
+
+Commands run inside the running api container (`docker compose exec api node dist/…`) through the root scripts, so they use the container's `DATABASE_URL`. Only `db:make` runs locally (it needs no database).
 
 - `pnpm db:migrate`, `pnpm db:rollback`, `pnpm db:status`, `pnpm db:make <name>`
-- `pnpm users list` · `pnpm users suspend|unsuspend <login>` · `pnpm users throttle <login> <perMin> <perDay>`
-- `pnpm credit <login> <amount> <reason>` · `pnpm ledger <login>` · `pnpm ledger:check`
+- `pnpm users list` · `pnpm users suspend|unsuspend <login>` · `pnpm users throttle <login> <perMin> <perDay>` (stores `rate_limit_override`; replaces the per-minute and per-day limits, [api.md](api.md))
+- `pnpm credit <login> <amount> <reason>` (an `adjust` entry; negative debits) · `pnpm ledger <login>` · `pnpm ledger:check` (every balance equals the sum of its entries; exit 1 on mismatch)
+- `pnpm users dev-session <login>` — **dev/test tool only**. Creates the local test user `<login>` if missing (negative `github_id`, GitHub account created one year ago) and prints a session token on stdout (pnpm's own header goes to stderr). Use it as the `si_session` cookie to test signed-in flows without GitHub: `curl -b "si_session=$(pnpm users dev-session alice)" http://localhost:4400/api/me`. Anyone holding a token is signed in as that user, so never run it against a public server's database. It refuses real GitHub accounts (positive `github_id`) and matches the GitHub login only.
+- `pnpm fake-worker <login> [--seconds N] [--api URL] [--device KEY]` — **dev/test tool only** (`apps/api/src/devFakeWorker.ts`, runs in the api container). Gets a session for the test user `<login>` through the same code as `dev-session`, requests a worker token, connects to `/v1/worker` (Origin `WEB_ORIGIN`), announces `Qwen3.5-4B-q4f16_1-MLC` with a fake GPU, heartbeats every 5 s, and answers any `job` with canned chunks (starting with `<think>\n\n</think>\n\n`) and a `done` with plausible usage; it honours `cancel`. It stops on Ctrl-C or when stdin closes; with `--seconds N` it ignores stdin and runs N seconds (use this when backgrounding with no stdin). Example: `sleep infinity | pnpm fake-worker alice &`. Then `curl http://localhost:4400/api/public/models` shows `workersOnline: 1`. Never run it against a public server.
+- CLI output for the operator (tables, balances, tokens, usage) is plain text on stdout; logs (state changes, failures) are JSON lines in the shape of [logging.md](logging.md).
+- `<login>` is a GitHub login or a display name, case-insensitive; an ambiguous match is an error.
+
+## Production (one VM, D41)
+
+Docs: `docs/deploy.md` (runbook). Files:
+
+- `compose.prod.yaml`, used as `docker compose -f compose.yaml -f compose.prod.yaml --env-file .env --env-file .deploy.env`: adds `caddy` (`caddy:2.11.9`, ports `HTTP_PORT`/`HTTPS_PORT` default 80/443 + 443/udp, volumes `caddy-data`/`caddy-config`, read-only directory mount `ops/caddy/`, 64 MB); removes the host ports of `db`, `api`, `web`; forces `TRUST_PROXY=true` on the api (Caddy is always in front); runs prebuilt images `shareinference-{api,web}:${IMAGE_TAG}` (no `build`); `web` has `NODE_OPTIONS=--max-old-space-size=192` and 320 MB; `db` runs `shared_buffers=128MB`, `max_connections=20`, 320 MB.
+- `ops/caddy/Caddyfile` (the directory is mounted so a deploy that replaces the file is seen; `ops/deploy.sh` also runs `caddy reload`): three sites with automatic HTTPS and HSTS. `www.{$DOMAIN}` redirects permanently to `https://{$DOMAIN}{uri}`. `{$DOMAIN}` -> `web:3000`; `{$API_DOMAIN}` -> `api:4000` (`/v1/*`, the `/v1/worker` WebSocket, every api route), `flush_interval -1` so SSE streams, no `encode` (nothing compresses `text/event-stream`). Both set `X-Real-IP {remote_host}` (overwriting any client value); the Next `/api/*` rewrite forwards it. Prod `.env`: `WEB_ORIGIN=https://shareinference.com`, `API_PUBLIC_URL=https://api.shareinference.com`, `TRUST_PROXY=true`, `COMPOSE_PROFILES=localdb`, `DOMAIN`, `API_DOMAIN`. DNS needs A records for the apex, `api.` and `www.` and no AAAA for now (Docker's userland proxy can hide IPv6 client addresses). The Share page (on the web origin) opens the WebSocket cross-origin; the upgrade's `Origin` check stays `WEB_ORIGIN`.
+- Production VM: deploy and operate as `root` over key-only ssh (`PasswordAuthentication no`, `PermitRootLogin prohibit-password`); no separate deploy user (2026-11-20; a `docker`-group user is root-equivalent anyway). Scripts and the systemd unit assume root.
+- `ops/deploy.sh` (`DEPLOY_HOST=root@host [DEPLOY_DIR] [DEPLOY_DOMAIN] [DEPLOY_API_DOMAIN] [DEPLOY_PLATFORM=linux/amd64] [--dry-run]`): builds both images locally (tag = short commit, `-dirty-<time>` when uncommitted), `docker save | gzip | ssh ... docker load`, copies `compose.yaml`, `compose.prod.yaml`, `ops/`, starts with the new tag in a temp `.deploy.env.new`, reloads Caddy, polls both health URLs, and only then makes it live (`.deploy.env`, the old one kept as `.deploy.env.prev`). The previous tag is read before anything changes; any failure prints the exact rollback command. `IMAGE_TAG=<tag> ops/deploy.sh` (tag already on the VM) redeploys without building or uploading = rollback. Never touches the VM's hand-made `.env`.
+- `ops/backup.sh`: `pg_dump -Fc` through `docker compose exec -T db` to `$BACKUP_DIR` (default `/var/backups/shareinference`) as `shareinference-<UTC>.dump`, atomic (`.tmp` then `mv`), verified with `pg_restore -l`, names include seconds and the PID, retention `BACKUP_RETENTION_DAYS` (14; also prunes `pre-restore-*` dumps and `*.tmp` leftovers older than a day), optional upload when `BACKUP_RCLONE_REMOTE` is set (off-VM storage is later; Linode daily VM backups are the interim off-site layer). `ops/shareinference-backup.{service,timer}` run it nightly 03:30 UTC (`Persistent=true`); no alerting (check `systemctl --failed` / `journalctl -u shareinference-backup`). Dumps hold user data: encrypt the off-VM copy (rclone crypt) when it is enabled. `COMPOSE_DIR` / `COMPOSE_ARGS` select the stack (default: production arguments when `.deploy.env` exists).
+- `ops/restore.sh [--yes] [--db NAME] <dump>`: default target is the live `shareinference` (confirmation by typing the name; stops `api`, drops and recreates the database, `pg_restore`, starts `api`; first a safety `pg_dump` to `BACKUP_DIR/pre-restore-<time>.dump`, abort if it fails); `--db NAME` restores into a scratch database and leaves `api` alone (restore test).
+- Admin on the VM: `docker compose ... exec -T api node dist/users.js <cmd>` (the `pnpm` scripts need the dev stack). `suspend` blocks an account everywhere and drops its workers (4403, at the next heartbeat check); suspending the owner is the worker-level suspension in the MVP. `throttle <login> <perMin> <perDay>` replaces the user's rate limits. The CLI opens 2 database connections; the root `pnpm db:*` scripts pin `DB_POOL_MAX=2`, so nothing competes with the api's pool for Postgres' 20 connections.

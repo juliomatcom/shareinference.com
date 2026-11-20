@@ -1,14 +1,20 @@
 # Provider WebSocket protocol (v1)
 
-Endpoint `GET /v1/worker` on the api's public URL. JSON text frames, one object per frame, each with a `type`. Every inbound frame is validated with zod; an invalid frame closes the socket (4400). Max inbound frame 64 KiB.
+Endpoint `GET /v1/worker` on the api's public URL (`API_PUBLIC_URL`, scheme `ws`/`wss`). The upgrade is refused with 403 unless its `Origin` header equals `WEB_ORIGIN`; any other path gets 404. JSON text frames, one object per frame, each with a `type`. Every inbound frame is validated with zod; an invalid frame closes the socket (4400). Max inbound frame 64 KiB (larger: close 1009); binary frames close 4400. Strings and numbers in every frame are bounded (e.g. `chunk.delta` at most 16 384 characters, `finishReason` is `stop` | `length` | `abort`, token counts integers up to 10^9); frames carry no unknown keys.
 
 ## Sequence
 
 1. Browser gets a worker token: `POST /api/worker-token` (session).
-2. Opens the socket; first frame within 10 s: `auth { token, protocol: 1, deviceKey }`. `deviceKey` is a random id the browser keeps in `localStorage` (identifies the device row in `workers`). Bad/expired token → close 4401.
-3. Server: `welcome { workerId }`.
-4. Worker loads the model, runs one tiny warm-up generation, then `ready { model, gpu: { vendor, architecture, shaderF16, maxBufferSize }, loadMs }`. `model` is the WebLLM id; unknown or disabled model → close 4404.
-5. Worker sends `heartbeat {}` every 5 s. Silent for 15 s → server drops it.
+2. Opens the socket; first frame within 5 s: `auth { token, protocol: 1, deviceKey }`. `deviceKey` is 8-64 characters `[A-Za-z0-9_-]`, a random id the browser keeps in `localStorage` (identifies the device row in `workers`). Bad, expired or used token, or a suspended user → close 4401. The server upserts the `workers` row (`user_id`, `device_key`, `last_seen_at`) and registers the worker as `connected`.
+3. Server: `welcome { workerId }` (the `workers` row id). The worker waits for it before sending anything else.
+4. `ready { model, gpu: { vendor, architecture, shaderF16, maxBufferSize }, loadMs }` within 60 s of `welcome` (else 4408). `model` is the WebLLM id of an enabled catalog row; unknown or disabled → close 4404. The worker has already loaded the model and run one tiny warm-up generation (D36) **before connecting**: a cold download can outlast the 60 s token. The server stores `gpu` and `last_model` on the row; `gpu.vendor` and `gpu.architecture` are shown publicly, so they are cleaned first (only `A-Za-z0-9 ._()+-`, spaces collapsed, at most 48 characters); the worker is now `ready` (idle). A second `ready` closes 4400.
+5. Worker sends `heartbeat {}` every 5 s. Silent for more than 15 s → server drops it (close 4408; swept every 5 s). `workers.last_seen_at` is written at most once a minute.
+
+Close codes: 4400 invalid frame or sequence, 4401 auth (timeout, bad token), 4403 owner suspended (found at the once-a-minute heartbeat check; the worker is then also skipped for jobs), 4404 unknown model, 4408 timeout (no `ready`, or silent), 4409 replaced by a newer connection of the same device, 4413 backlog (more than 1 MiB of frames received but not yet processed on one socket; retryable), 4429 too many workers (4 per user, 5 000 in total). A device that reconnects (same `deviceKey`) replaces its old entry: the old socket is closed 4409 and never counts twice, and anything the replaced socket still sends is ignored. A socket that closes while its `auth` is being processed never reaches the registry.
+
+Pre-auth budget: at most 300 sockets may be connected without having authenticated (counted from the upgrade until `auth` succeeds or the socket closes); beyond that the upgrade is refused 503. Per-IP rule: at most 30 upgrades per minute per IP, refused `429` at the upgrade (the socket address, or `X-Real-IP` when `TRUST_PROXY=true`; [api.md](api.md) "Limits"); the browser's reconnect backoff handles it. In production the page on the web origin connects cross-origin to the api host; the `Origin` check against `WEB_ORIGIN` is what admits it.
+
+Reconnect (browser): after any close the page requests a new token and the worker reconnects with exponential backoff (1 s doubling to 30 s, jittered by +-50%; the counter restarts only after a connection stayed up 30 s) without reloading the model; 4400, 4404, 4409 and 4429 are not retried (4403 closes mean the account is suspended; the page's next token request then fails and it stops).
 
 ## Jobs (one at a time per worker)
 
@@ -23,5 +29,7 @@ Endpoint `GET /v1/worker` on the api's public URL. JSON text frames, one object 
 
 - Before every job the worker calls `engine.resetChat()` (no KV reuse between jobs).
 - The worker maps params to WebLLM: `enable_thinking` → `extra_body.enable_thinking`; streams with `stream_options.include_usage`.
-- Frames for an unknown or finished job id are ignored. A second `job` while busy is a server bug: the worker answers `error { code: "busy" }`.
+- Frames for an unknown or finished job id, or for a job the worker does not currently hold, are ignored. A second `job` while busy is a server bug: the worker answers `error { code: "busy" }`.
+- A worker stays busy until it sends `done` or `error` for its job id, also after the api sent `cancel` (consumer left, first-chunk or 180 s timeout, output over the limit). The worker should answer a `cancel` promptly with `done { finishReason: "abort" }` (or `error`); if it sends neither within 10 s the api drops its socket (close 4408). `done` with `finishReason: "abort"` for a job that was not cancelled, or with no (or only whitespace) output, counts as a failure. After a consumer cancel that followed delivered output, the `done` usage is what gets billed (capped at the chunks delivered). `stats` totals are integers up to 2^53-1. Output beyond `max_tokens` + 8 chunks or 64 characters per `max_tokens` is cut off the same way.
+- Usage in `done` is capped before settlement ([economy.md](economy.md)); `stats` follows each settled job.
 - The provider UI shows live usage from `stats`; it never receives consumer identity.

@@ -7,16 +7,17 @@
 - **Deny by default:** every api route requires auth unless it is on the public allowlist in [api.md](api.md). A test asserts every other route returns 401 without credentials.
 - **Untrusted provider:** the provider browser is untrusted. Validate every WebSocket message with zod; cap reported usage (see [economy.md](economy.md)); never send consumer identity, API keys, IPs or account ids to a provider.
 - **Privacy:** never store or log prompt or completion text. Logs carry ids, counts and timings only.
-- **Secrets:** read from env only (one root `.env`); never in source, images, logs, API responses or URLs. Every env var the code reads is listed and documented in `.env.example`; a test enforces it.
+- **Secrets:** read from env only (one root `.env`); never in source, images, logs, API responses or URLs. Every env var the code reads is listed and documented in `.env.example`; a test enforces it. CI runs gitleaks over the full history; run `gitleaks git .` and `gitleaks dir .` locally before pushing. False positives are allowlisted by path in `.gitleaks.toml` (keep each entry narrow and explained).
 - **Money:** credits are integers. Every balance change is a `ledger_entries` row written in the same transaction as the `balances` update; the ledger is append-only.
 - **Bounded everything:** every queue, buffer, body, message and timeout has an explicit limit.
 - **Public repository:** assume attackers read the code; security comes from server-side checks, never from client secrecy.
+- **CSP (deferred, post-MVP):** the web app sends no `Content-Security-Policy` yet (the api's Helmet CSP covers only its own JSON). The Share page loads WebLLM from jsDelivr, model files from Hugging Face, wasm and a module Web Worker, so a policy needs careful testing on real GPU devices; it is an explicit deferral, not an oversight (D39).
 
 ## Code
 
 - TypeScript strict, ESM, Node 24. No `any` in `core`. Validation with zod at the edges.
 - Formatting: Prettier (width 120). CI fails on unformatted files.
-- Logging: one JSON line per event via the api's logger (`ts`, `level`, `msg`, fields). No `console.*` elsewhere.
+- Logging: one JSON line per event through the shared `@shareinference/logger`; format, rules and what is logged in [logging.md](logging.md). No `console.*` elsewhere.
 - Comments explain why, not what.
 - Dependencies: pinned versions; never swap or upgrade one without asking the user.
 
