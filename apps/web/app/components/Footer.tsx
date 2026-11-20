@@ -34,6 +34,10 @@ export function Footer() {
             Terms
           </Link>
         </span>
+        <p className="basis-full text-xs text-neutral-500">
+          &copy; {new Date().getFullYear()} ShareInference. All rights reserved, except the source code, which is
+          licensed under the AGPL-3.0.
+        </p>
       </div>
     </footer>
   );
