@@ -1,0 +1,36 @@
+# Production reverse proxy (compose.prod.yaml). Two hosts, both with automatic HTTPS (Let's Encrypt; `localhost` and
+# `*.localhost` use Caddy's internal CA):
+#   https://www.{$DOMAIN}  -> permanent redirect to https://{$DOMAIN}
+#   https://{$DOMAIN}      -> web:3000  (Next.js; its /api/* rewrite reaches the api internally, same-origin cookies)
+#   https://{$API_DOMAIN}  -> api:4000  (OpenAI-compatible /v1/*, SSE streams, the /v1/worker provider WebSocket)
+# No `encode`: Next compresses its own responses, and compressing or buffering the api's text/event-stream would break
+# token streaming. X-Real-IP is overwritten with the TCP peer on both hosts (never a client value): the api trusts it
+# only with TRUST_PROXY=true and builds its per-IP rate limits on it.
+# www -> apex, permanently (needs a DNS A record for www.<domain>).
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+{$DOMAIN} {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	reverse_proxy web:3000 {
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+{$API_DOMAIN} {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	reverse_proxy api:4000 {
+		header_up X-Real-IP {remote_host}
+		# Stream every write straight to the client (SSE).
+		flush_interval -1
+	}
+}

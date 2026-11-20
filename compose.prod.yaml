@@ -1,0 +1,55 @@
+# Production override: docker compose -f compose.yaml -f compose.prod.yaml --env-file .env --env-file .deploy.env up -d
+# (ops/deploy.sh does it). Prebuilt images by tag (nothing is built on the VM, D41), Caddy in front on 80/443, no host
+# ports for db, api and web. Memory budget (D41): api 256m, web 320m (heap 192), db 320m, caddy 64m.
+services:
+  db:
+    ports: !reset []
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=20"]
+    mem_limit: 320m
+
+  api:
+    image: shareinference-api:${IMAGE_TAG:?set IMAGE_TAG (ops/deploy.sh writes it to .deploy.env)}
+    build: !reset null
+    ports: !reset []
+    environment:
+      # Caddy is always in front here and overwrites X-Real-IP: the per-IP limits must read it.
+      TRUST_PROXY: "true"
+
+  web:
+    image: shareinference-web:${IMAGE_TAG:?set IMAGE_TAG (ops/deploy.sh writes it to .deploy.env)}
+    build: !reset null
+    ports: !reset []
+    environment:
+      NODE_OPTIONS: --max-old-space-size=192
+    mem_limit: 320m
+
+  caddy:
+    image: caddy:2.11.9
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env (e.g. shareinference.com)}
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in .env (e.g. api.shareinference.com)}
+    volumes:
+      # The directory, not the file: a bind-mounted single file keeps the old inode when a deploy replaces it.
+      - ./ops/caddy:/etc/caddy:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api: { condition: service_healthy }
+      web: { condition: service_healthy }
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 64m
+    logging:
+      options: { max-size: 50m, max-file: "5" }
+
+volumes:
+  caddy-data: {}
+  caddy-config: {}

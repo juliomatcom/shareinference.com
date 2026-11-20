@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: shareinference
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: shareinference_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U shareinference -d shareinference_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://shareinference:ci@127.0.0.1:5432/shareinference_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks scans the history
+      - uses: pnpm/action-setup@v4 # version from package.json `packageManager`
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Shared libraries (libs/) compile to dist; lint, test and the api import that build.
+      - run: pnpm build:libs
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test
+      - run: pnpm audit --prod --audit-level high
+      - run: pnpm --filter @shareinference/web build
+      # No secrets here: only DATABASE_URL, a dummy, so compose interpolation passes.
+      - run: docker compose build
+        env:
+          DATABASE_URL: postgres://user:pass@db:5432/db
+      # Free for personal repositories; an organization needs a GITLEAKS_LICENSE secret.
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

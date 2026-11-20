@@ -1,0 +1,11 @@
+[Unit]
+Description=ShareInference nightly Postgres backup
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+# Adjust the path when the stack is not deployed to /opt/shareinference. Optional settings (BACKUP_DIR,
+# BACKUP_RETENTION_DAYS, BACKUP_RCLONE_REMOTE) go in `systemctl edit shareinference-backup.service`.
+WorkingDirectory=/opt/shareinference
+ExecStart=/opt/shareinference/ops/backup.sh

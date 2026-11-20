@@ -1,0 +1,11 @@
+# Extends the default ruleset. Gitleaks picks this file up automatically (also in CI).
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Vendored skill doc: WebCrypto method and algorithm names that look like keys, not secrets"
+paths = ['''(^|/)\.agents/skills/modern-web-guidance/guides/security/client-side-encryption\.md$''']
+
+[[allowlists]]
+description = "Test fixture: a made-up worker deviceKey, not a credential"
+paths = ['''(^|/)apps/api/test/protocol\.test\.ts$''']

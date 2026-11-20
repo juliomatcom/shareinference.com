@@ -1,0 +1,7 @@
+packages:
+  - apps/api
+  - apps/web
+  - libs/logger-ts
+# esbuild (via tsx) has an optional install script; the platform binary works without it.
+allowBuilds:
+  esbuild: false

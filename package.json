@@ -1,0 +1,29 @@
+{
+  "name": "shareinference",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "docker compose up -d --wait db && pnpm build:libs && pnpm --parallel --filter @shareinference/api --filter @shareinference/web dev",
+    "lint": "pnpm build:libs && pnpm -r lint",
+    "test": "pnpm build:libs && pnpm -r --if-present test",
+    "build:libs": "pnpm --filter @shareinference/logger build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:migrate": "docker compose exec -e DB_POOL_MAX=2 api node dist/migrate.js latest",
+    "db:rollback": "docker compose exec -e DB_POOL_MAX=2 api node dist/migrate.js rollback",
+    "db:status": "docker compose exec -e DB_POOL_MAX=2 api node dist/migrate.js status",
+    "db:make": "pnpm build:libs && pnpm --filter @shareinference/api db:make",
+    "users": "docker compose exec -T api node dist/users.js",
+    "credit": "docker compose exec -T api node dist/users.js credit",
+    "ledger": "docker compose exec -T api node dist/users.js ledger",
+    "ledger:check": "docker compose exec -T api node dist/users.js ledger:check",
+    "fake-worker": "docker compose exec -T api node dist/devFakeWorker.js"
+  },
+  "devDependencies": {
+    "prettier": "3.9.10"
+  }
+}

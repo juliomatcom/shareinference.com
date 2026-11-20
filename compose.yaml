@@ -1,0 +1,108 @@
+# The whole ShareInference stack (see README):
+#   docker compose up -d --build
+name: shareinference
+
+x-logging: &logging
+  options: { max-size: 50m, max-file: "5" }
+
+services:
+  # Bundled Postgres; only with COMPOSE_PROFILES=localdb. The 127.0.0.1:5432 publish is for development and tests
+  # (TEST_DATABASE_URL from the host); remove it on a server.
+  db:
+    image: postgres:17
+    profiles: [localdb]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shareinference
+      POSTGRES_DB: shareinference
+      # Required with the localdb profile (empty makes postgres refuse to start, with a clear message).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [db-data:/var/lib/postgresql/data]
+    logging: *logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shareinference -d shareinference"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    # The tag lets production (compose.prod.yaml) run prebuilt images by IMAGE_TAG; development builds `latest`.
+    image: shareinference-api:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 20s
+    # Explicit list (no env_file): the api never receives POSTGRES_PASSWORD or other compose-only values.
+    # Empty values count as unset; the api fails fast naming the variable.
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      DB_POOL_MAX: ${DB_POOL_MAX:-}
+      WEB_ORIGIN: ${WEB_ORIGIN:-}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      SIGNUP_GRANT_CREDITS: ${SIGNUP_GRANT_CREDITS:-}
+      LOG_LEVEL: ${LOG_LEVEL:-}
+      TRUST_PROXY: ${TRUST_PROXY:-}
+    ports: ["${BIND_ADDR:-127.0.0.1}:${API_PORT:-4401}:4000"]
+    # `required: false`: no db service when COMPOSE_PROFILES does not include localdb.
+    depends_on:
+      db: { condition: service_healthy, required: false }
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    logging: *logging
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      start_interval: 2s
+      start_period: 30s
+      timeout: 3s
+      retries: 3
+
+  web:
+    image: shareinference-web:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      # Next resolves rewrites at build time.
+      args:
+        API_INTERNAL_URL: http://api:4000
+    restart: unless-stopped
+    init: true
+    ports: ["${BIND_ADDR:-127.0.0.1}:${WEB_PORT:-4400}:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+    read_only: true
+    tmpfs: [/tmp, /app/apps/web/.next/cache]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    logging: *logging
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      start_interval: 2s
+      start_period: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  db-data: {}
