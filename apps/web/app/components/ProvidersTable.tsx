@@ -7,19 +7,19 @@ import { usePolled } from "../lib/usePolled";
 import { Pager } from "./Pager";
 import { card } from "./ui";
 
-const th = "px-3 py-2 text-left font-medium";
-const td = "px-3 py-2.5";
+const th = "px-2 sm:px-3 py-2 text-left font-medium";
+const td = "px-2 sm:px-3 py-2.5";
 
 function Status({ online }: { online: boolean }) {
   return online ? (
     <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent">
       <span className="size-1.5 rounded-full bg-accent shadow-[0_0_6px_#22c55e]" />
-      LIVE
+      <span className="sr-only sm:not-sr-only">LIVE</span>
     </span>
   ) : (
     <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500">
       <span className="size-1.5 rounded-full bg-neutral-600" />
-      OFFLINE
+      <span className="sr-only sm:not-sr-only">OFFLINE</span>
     </span>
   );
 }
@@ -100,7 +100,7 @@ export function ProvidersTable({
             {rows?.map((p) => (
               <tr key={p.rank} className="border-b border-neutral-800/60 last:border-0">
                 <td className={`${td} text-neutral-400`}>#{p.rank}</td>
-                <td className={`${td} max-w-36 truncate font-medium text-neutral-100`}>{p.name}</td>
+                <td className={`${td} max-w-24 truncate sm:max-w-36 font-medium text-neutral-100`}>{p.name}</td>
                 <td className={`${td} hidden max-w-48 sm:table-cell`}>
                   <div className="truncate text-neutral-200">{p.deviceLabel ?? p.gpu ?? "-"}</div>
                   {p.deviceLabel && p.gpu && <div className="truncate text-xs text-neutral-500">{p.gpu}</div>}

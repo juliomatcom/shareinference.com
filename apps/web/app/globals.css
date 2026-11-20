@@ -55,3 +55,9 @@ input[type="checkbox"]:not(:disabled),
 label:has(input[type="checkbox"]:not(:disabled)) {
   cursor: pointer;
 }
+
+/* Scroll containers are positioned so absolutely placed children (the `sr-only` header cells) are clipped with them
+   instead of stretching the whole page sideways. */
+.overflow-x-auto {
+  position: relative;
+}
