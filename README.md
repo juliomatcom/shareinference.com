@@ -1,4 +1,5 @@
 # ShareInference
+
 [![ci](https://github.com/juliomatcom/shareinference.com/actions/workflows/ci.yml/badge.svg)](https://github.com/juliomatcom/shareinference.com/actions/workflows/ci.yml)
 
 An open-source, community-powered AI inference network. People share spare GPU compute straight from a browser tab (WebGPU, no install) and earn credits; credits are spent through an OpenAI-compatible API to run open-weight models. The server only orchestrates, routes and keeps the credit ledger — all inference runs in contributors' browsers.
