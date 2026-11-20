@@ -1,11 +1,12 @@
 # Extends the default ruleset. Gitleaks picks this file up automatically (also in CI).
+# Uses the legacy [allowlist] table on purpose: gitleaks-action pins gitleaks 8.24.3,
+# which ignores the newer [[allowlists]] syntax (added in 8.25).
 [extend]
 useDefault = true
 
-[[allowlists]]
-description = "Vendored skill doc: WebCrypto method and algorithm names that look like keys, not secrets"
-paths = ['''(^|/)\.agents/skills/modern-web-guidance/guides/security/client-side-encryption\.md$''']
-
-[[allowlists]]
-description = "Test fixture: a made-up worker deviceKey, not a credential"
-paths = ['''(^|/)apps/api/test/protocol\.test\.ts$''']
+[allowlist]
+description = "False positives: a vendored skill doc (WebCrypto algorithm names) and a made-up test deviceKey"
+paths = [
+  '''(^|/)\.agents/skills/modern-web-guidance/guides/security/client-side-encryption\.md$''',
+  '''(^|/)apps/api/test/protocol\.test\.ts$''',
+]
