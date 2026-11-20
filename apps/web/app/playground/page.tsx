@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useRequireMe } from "../components/MeProvider";
 import { gateMessage, input, primaryButton } from "../components/ui";
-import { creditsFor, formatNumber, type PublicModel } from "../lib/api";
+import { creditsFor, formatNumber, pickDefaultModel, type PublicModel } from "../lib/api";
 import {
   ChatError,
   MAX_MESSAGES,
@@ -45,7 +45,7 @@ const fmtMs = (ms: number) => (ms >= 10_000 ? `${(ms / 1000).toFixed(1)} s` : `$
 /** Clicks on Stop this soon after Send are the tail of a double-click on Send, not a decision to stop. */
 const STOP_GUARD_MS = 400;
 const WARN_AT = 0.8;
-const MAX_DRAFT_CHARS = 12_000;
+const MAX_DRAFT_CHARS = 40_000;
 /** What the Thinking switch does; shown as the tooltip on the switch and on a reply's "Thinking" disclosure. */
 const THINKING_HELP =
   "Lets the model reason step by step before it answers. The reasoning is shown in a collapsible Thinking section above the reply. Answers can be better on hard questions but take longer, and the reasoning tokens are billed like reply tokens.";
@@ -58,11 +58,11 @@ export default function Playground() {
   const models = usePolled<{ models: PublicModel[] }>("/public/models", 10_000);
   const online = useMemo(() => (models.data?.models ?? []).filter((m) => m.workersOnline > 0), [models.data]);
   const [selected, setSelected] = useState("");
-  const model = online.find((m) => m.id === selected) ?? online[0];
+  const model = online.find((m) => m.id === selected) ?? pickDefaultModel(online);
 
   const [messages, setMessages] = useState<Msg[]>([]);
   const [draft, setDraft] = useState("");
-  const [thinking, setThinking] = useState(true);
+  const [thinking, setThinking] = useState(false);
   const [busy, setBusy] = useState(false);
   // An error that is not part of the conversation (the failed message is taken back into the textarea).
   const [notice, setNotice] = useState<Friendly | null>(null);

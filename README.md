@@ -37,7 +37,7 @@ Prompts are processed in a contributor's browser, so treat them as shared with a
 
 ## Status
 
-The MVP works end to end: GitHub sign-in, API keys, a one-model catalog (`qwen3.5-4b`), browser GPU sharing that keeps running while you browse, a credit ledger, a Playground, a dashboard with paged ledger and history, and a public leaderboard. Early days, so expect rough edges. The plan, decisions and verification log live in [`specs/mvp-plan.md`](specs/mvp-plan.md).
+The MVP works end to end: GitHub sign-in, API keys, a small model catalog (Qwen3.5 2B, 4B and 9B, Gemma 4 E2B) that providers choose from, browser GPU sharing that keeps running while you browse, a credit ledger, a Playground, a dashboard with paged ledger and history, and a public leaderboard. Early days, so expect rough edges. The plan, decisions and verification log live in [`specs/mvp-plan.md`](specs/mvp-plan.md).
 
 ## Quickstart
 
@@ -53,6 +53,7 @@ docker compose up -d --build
 - Step by step, including the GitHub OAuth app and the admin CLI: [`docs/setup.md`](docs/setup.md).
 - Putting it on a public server (Caddy with automatic HTTPS, backups, deploy script): [`docs/deploy.md`](docs/deploy.md).
 - Lending your GPU (what you need, how it works): [`docs/contribute.md`](docs/contribute.md).
+- Questions and every limit in one place: [`docs/faq.md`](docs/faq.md).
 - Using the OpenAI-compatible API (curl and the OpenAI SDK; the hosted instance is `https://api.shareinference.com/v1`): [`docs/api.md`](docs/api.md).
 - Data lives in the `db-data` volume and survives restarts; `docker compose down -v` deletes it.
 - The database password is fixed when the volume is first created; changing it later requires `docker compose down -v`.

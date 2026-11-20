@@ -16,7 +16,7 @@ export interface StreamResult {
 }
 
 /** Tokens reserved for every reply: sent as `max_tokens` (the api default) and counted in the context meter. */
-export const MAX_TOKENS = 1024;
+export const MAX_TOKENS = 4096;
 
 export class ChatError extends Error {
   constructor(

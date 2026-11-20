@@ -25,7 +25,8 @@ let stableTimer = null;
 let stopped = false;
 let attempt = 0;
 let loadMs = 0;
-let cfg = null; // { model, apiUrl, deviceKey, gpu }
+let loadedWindow; // context window this engine was loaded with (announced in `ready`)
+let cfg = null; // { model, contextWindow, apiUrl, deviceKey, gpu }
 let current = null; // { id } while a job runs
 let currentDone = Promise.resolve();
 
@@ -60,9 +61,18 @@ async function start(message) {
   cfg = message;
   status("loading");
   const t0 = performance.now();
-  engine = await webllm.CreateMLCEngine(cfg.model, {
-    initProgressCallback: (r) => post({ type: "progress", progress: r.progress, text: r.text }),
-  });
+  // The catalog's context window (`CONTEXT_WINDOWS` in apps/api/src/core/models.ts, sent by the page) overrides the prebuilt record's 4096: WebLLM sizes the KV
+  // cache from it at load (wiki-llm/architecture.md).
+  const chatOpts =
+    Number.isInteger(cfg.contextWindow) && cfg.contextWindow > 0
+      ? { context_window_size: cfg.contextWindow }
+      : undefined;
+  loadedWindow = chatOpts?.context_window_size;
+  engine = await webllm.CreateMLCEngine(
+    cfg.model,
+    { initProgressCallback: (r) => post({ type: "progress", progress: r.progress, text: r.text }) },
+    chatOpts,
+  );
   // One tiny generation so the first real job does not pay the kernel warm-up (D36).
   await engine.chat.completions.create({
     messages: [{ role: "user", content: "Hi" }],
@@ -126,7 +136,13 @@ async function onFrame(frame) {
     case "welcome":
       // A job from the old connection may still be winding down: never announce `ready` while the engine is busy.
       await currentDone;
-      send({ type: "ready", model: cfg.model, gpu: cfg.gpu, loadMs });
+      send({
+        type: "ready",
+        model: cfg.model,
+        gpu: cfg.gpu,
+        loadMs,
+        ...(loadedWindow ? { contextWindow: loadedWindow } : {}),
+      });
       clearTimeout(stableTimer);
       stableTimer = setTimeout(() => (attempt = 0), STABLE_MS);
       clearInterval(heartbeat);

@@ -53,6 +53,7 @@ const menuItem =
 export function Header() {
   const { state, signOut } = useMe();
   const { active, run } = useSharing();
+  const live = run === "ready" || run === "busy"; // same rule as the bottom bar: green when serving, amber otherwise
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [signOutFailed, setSignOutFailed] = useState(false);
@@ -109,11 +110,17 @@ export function Header() {
             <Link
               href="/share"
               aria-label={`Sharing your GPU: ${SHORT_STATUS[run]}`}
-              className="hidden items-center gap-2 rounded-md border border-accent/40 bg-accent/10 px-3 py-1 text-sm font-semibold text-accent hover:bg-accent/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:inline-flex"
+              className={`hidden items-center gap-2 rounded-md border px-3 py-1 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:inline-flex ${
+                live
+                  ? "border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
+                  : "border-amber-400/40 bg-amber-400/10 text-amber-400 hover:bg-amber-400/20"
+              }`}
             >
               <span className="relative flex size-2.5 items-center justify-center" aria-hidden="true">
-                <span className="absolute size-2.5 rounded-full bg-accent opacity-60 motion-safe:animate-ping" />
-                <span className="relative size-2 rounded-full bg-accent" />
+                <span
+                  className={`absolute size-2.5 rounded-full opacity-60 motion-safe:animate-ping ${live ? "bg-accent" : "bg-amber-400"}`}
+                />
+                <span className={`relative size-2 rounded-full ${live ? "bg-accent" : "bg-amber-400"}`} />
               </span>
               {SHORT_STATUS[run]}
             </Link>

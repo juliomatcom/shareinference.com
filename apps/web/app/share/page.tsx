@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { useRequireMe } from "../components/MeProvider";
 import { STATUS_LABEL, useSharing } from "../components/SharingProvider";
 import { card, gateMessage } from "../components/ui";
-import { formatNumber } from "../lib/api";
+import { MODEL_VRAM_MB, formatNumber, pickDefaultModel } from "../lib/api";
 
 // Provider mode (wiki-llm/web.md): the Web Worker lives in `SharingProvider` (root layout), so sharing keeps running
 // while you navigate. This page only starts and stops it and shows status and usage.
@@ -13,8 +13,23 @@ import { formatNumber } from "../lib/api";
 export default function Share() {
   const { state } = useRequireMe();
   const ready = state.status === "ready";
-  const { gpu, model, run, active, progress, stats, error, awake, understood, prepare, acknowledge, start, stop } =
-    useSharing();
+  const {
+    gpu,
+    models,
+    model,
+    select,
+    run,
+    active,
+    progress,
+    stats,
+    error,
+    awake,
+    understood,
+    prepare,
+    acknowledge,
+    start,
+    stop,
+  } = useSharing();
 
   useEffect(() => {
     if (ready) prepare();
@@ -29,6 +44,8 @@ export default function Share() {
         ? "This browser cannot share a GPU."
         : STATUS_LABEL[run];
 
+  const live = run === "ready" || run === "busy"; // green while serving, amber while loading or reconnecting
+  const recommendedId = pickDefaultModel(models)?.id;
   const gate = gateMessage(state);
   if (gate) return gate;
 
@@ -39,9 +56,9 @@ export default function Share() {
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
       <h1 className="text-2xl font-bold">Share your GPU</h1>
       <p className="text-sm text-neutral-400">
-        Keep this browser tab open and your GPU answers requests from other people. You can browse the site meanwhile:
-        sharing continues until you press Stop or close the tab. You earn credits for every token served. Requests are
-        processed in your browser; this page never shows who asked or what was asked.
+        Keep this browser tab open and your GPU generates AI answers for other people. You can browse the site
+        meanwhile: sharing continues until you press Stop or close the tab. You earn credits for every token served.
+        Requests are processed in your browser; this page never shows who asked or what was asked.
       </p>
 
       <section
@@ -55,21 +72,37 @@ export default function Share() {
           <p
             role="status"
             className={`inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium ${
-              active ? "border-accent/40 text-accent" : "border-neutral-700 text-neutral-400"
+              !active
+                ? "border-neutral-700 text-neutral-400"
+                : live
+                  ? "border-accent/40 text-accent"
+                  : "border-amber-400/40 text-amber-400"
             }`}
           >
-            <span aria-hidden="true" className={`size-1.5 rounded-full ${active ? "bg-accent" : "bg-neutral-500"}`} />
+            <span
+              aria-hidden="true"
+              className={`size-1.5 rounded-full ${!active ? "bg-neutral-500" : live ? "bg-accent" : "bg-amber-400"}`}
+            />
             {STATUS_LABEL[run]}
           </p>
           <div className="flex items-center gap-2">
             {active ? (
-              <span className="inline-flex items-center gap-2 rounded-md border border-accent/60 bg-accent/10 px-3.5 py-1.5 text-sm font-semibold text-accent">
+              <span
+                className={`inline-flex items-center gap-2 rounded-md border px-3.5 py-1.5 text-sm font-semibold ${
+                  live
+                    ? "border-accent/60 bg-accent/10 text-accent"
+                    : "border-amber-400/60 bg-amber-400/10 text-amber-400"
+                }`}
+              >
                 <span className="relative flex size-4 items-center justify-center">
                   <span
                     aria-hidden="true"
-                    className="absolute size-3 rounded-full bg-accent opacity-60 motion-safe:animate-ping"
+                    className={`absolute size-3 rounded-full opacity-60 motion-safe:animate-ping ${live ? "bg-accent" : "bg-amber-400"}`}
                   />
-                  <span aria-hidden="true" className="relative size-2 rounded-full bg-accent" />
+                  <span
+                    aria-hidden="true"
+                    className={`relative size-2 rounded-full ${live ? "bg-accent" : "bg-amber-400"}`}
+                  />
                 </span>
                 Sharing is ON
               </span>
@@ -142,11 +175,52 @@ export default function Share() {
         <h2 id="model-heading" className="font-semibold">
           Model
         </h2>
-        {model ? (
-          <p className="text-sm text-neutral-300">
-            {model.webllmId} · context {formatNumber(model.contextWindow)} tokens · {model.workersOnline} online now.
-            The first start downloads about 2.4 GB; it is cached in your browser afterwards.
-          </p>
+        {models.length > 0 ? (
+          <>
+            <fieldset disabled={active} className="space-y-2">
+              <legend className="mb-1 text-sm text-neutral-300">Choose the model your GPU will serve</legend>
+              {models.map((m) => {
+                const vram = MODEL_VRAM_MB[m.id];
+                return (
+                  <label
+                    key={m.id}
+                    className={`flex items-start gap-3 rounded-md border p-3 text-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent ${
+                      m.id === model?.id ? "border-accent/50 bg-accent/5" : "border-neutral-800"
+                    } ${active ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-neutral-600"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="model"
+                      value={m.id}
+                      checked={m.id === model?.id}
+                      onChange={() => select(m.id)}
+                      className="mt-1 accent-accent"
+                    />
+                    <span className="space-y-0.5">
+                      <span className="flex flex-wrap items-center gap-2 font-medium text-neutral-100">
+                        {m.id}
+                        {m.id === recommendedId && (
+                          <span className="rounded-full border border-accent/40 px-2 py-0.5 text-xs font-normal text-accent">
+                            Recommended
+                          </span>
+                        )}
+                      </span>
+                      <span className="block text-neutral-400">
+                        context {formatNumber(m.contextWindow)} tokens
+                        {vram !== undefined && ` · needs about ${(vram / 1000).toFixed(1)} GB GPU memory`}
+                        {m.priceMultiplier > 1 && ` · pays x${m.priceMultiplier} credits per token`}
+                        {` · ${m.workersOnline} online now`}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </fieldset>
+            <p className="text-xs text-neutral-400">
+              The first start downloads about as much as the model needs in GPU memory; it is cached in your browser
+              afterwards. You cannot change the model while sharing: press Stop first.
+            </p>
+          </>
         ) : (
           <p className="text-sm text-neutral-400">Loading...</p>
         )}

@@ -1,18 +1,18 @@
 # Share your GPU
 
-ShareInference runs on GPUs that people lend it. When you open the **Share GPU** page and press **Turn ON**, your browser downloads a language model, keeps it on your graphics card, and answers requests from other users. Every token you serve earns you credits, which you can spend on the OpenAI-compatible API.
+ShareInference runs on GPUs that people lend it. When you open the **Share GPU** page and press **Turn ON**, your browser downloads a language model, keeps it on your graphics card, and uses it to generate answers for other users. Every token you serve earns you credits, which you can spend on the OpenAI-compatible API.
 
 ## What you need
 
 - A desktop **Chrome or Edge** (recent version) with WebGPU. Check by opening the Share page: it tells you what is missing.
-- A GPU with 16-bit shader support and roughly 4 GB of free video memory. Apple Silicon Macs and recent NVIDIA, AMD and Intel GPUs work.
+- A GPU with 16-bit shader support and roughly 4 GB of free video memory for the recommended model (smaller and larger models are listed on the Share page with what they need). Apple Silicon Macs and recent NVIDIA, AMD and Intel GPUs work.
 - The page opened over **HTTPS** or on `localhost`. WebGPU does not work on a plain-HTTP address.
-- About **2.4 GB of download** the first time. The model is cached in your browser, so later starts take seconds.
+- A download about the size of the model's memory need the first time (a few GB). The model is cached in your browser, so later starts take seconds.
 
 ## How it works
 
 1. Sign in with GitHub and open **Share GPU**.
-2. Press **Turn ON**. You see the model loading, then the status **Ready**.
+2. Pick a model (the recommended one is selected) and press **Turn ON**. You cannot change the model while sharing. You see the model loading, then the status **Ready**.
 3. Leave the tab open. You can browse other pages of the site meanwhile: sharing keeps running, and a bar at the bottom shows your status and credits earned. While the tab is visible the page keeps your screen awake. If the connection drops it reconnects by itself.
 4. Press **Stop** (on the Share page or in the bottom bar) whenever you like. Closing the tab stops sharing too.
 

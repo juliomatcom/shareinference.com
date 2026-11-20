@@ -1,19 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { api } from "../lib/api";
+import { api, pickDefaultModel, type PublicModel } from "../lib/api";
 import { useMe } from "./MeProvider";
 
 // Provider mode (wiki-llm/web.md): the Web Worker owns WebLLM and the socket. It lives here, in the root layout, so
 // client-side navigation never stops it; only Stop, a failure, signing out or closing the tab does. The UI (the
 // /share page and the bottom `ShareBar`) only reads this state. It never sees consumer identity or content.
-
-export interface PublicModel {
-  id: string;
-  webllmId: string;
-  contextWindow: number;
-  workersOnline: number;
-}
 
 interface GpuInfo {
   vendor: string;
@@ -106,7 +99,13 @@ const ackKey = (userId: string) => `${ACK_KEY}:${userId}`;
 
 interface Sharing {
   gpu: GpuCheck;
+  /** The catalog (enabled models), ordered by id. */
+  models: PublicModel[];
+  selectedId: string | null;
+  /** The model that `start()` will serve: the selected one. */
   model: PublicModel | null;
+  /** Picks the model to serve; ignored while sharing. */
+  select(id: string): void;
   run: Run;
   /** Sharing is in progress (loading, connecting, ready, busy or reconnecting). */
   active: boolean;
@@ -129,7 +128,8 @@ export function SharingProvider({ children }: { children: ReactNode }) {
   const { state } = useMe();
   const signedIn = state.status === "ready";
   const [gpu, setGpu] = useState<GpuCheck>({ status: "checking" });
-  const [model, setModel] = useState<PublicModel | null>(null);
+  const [models, setModels] = useState<PublicModel[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [run, setRun] = useState<Run>("idle");
   const [progress, setProgress] = useState<{ value: number; text: string } | null>(null);
   const [stats, setStats] = useState<Stats>(ZERO_STATS);
@@ -139,6 +139,7 @@ export function SharingProvider({ children }: { children: ReactNode }) {
   const worker = useRef<Worker | null>(null);
   const prepared = useRef(false);
   const active = run !== "idle" && run !== "stopped";
+  const model = models.find((m) => m.id === selectedId) ?? null;
 
   const prepare = useCallback(() => {
     if (prepared.current) return;
@@ -146,8 +147,21 @@ export function SharingProvider({ children }: { children: ReactNode }) {
     void checkGpu()
       .then(setGpu)
       .catch(() => setGpu({ status: "unsupported", reason: "Could not check WebGPU in this browser." }));
-    void api<{ models: PublicModel[] }>("/public/models").then((res) => setModel(res.data?.models[0] ?? null));
+    void api<{ models: PublicModel[] }>("/public/models").then((res) => {
+      const list = res.data?.models ?? [];
+      setModels(list);
+      setSelectedId((cur) =>
+        cur !== null && list.some((m) => m.id === cur) ? cur : (pickDefaultModel(list)?.id ?? null),
+      );
+    });
   }, []);
+
+  const select = useCallback(
+    (id: string) => {
+      if (!active) setSelectedId(id);
+    },
+    [active],
+  );
 
   const userId = state.status === "ready" ? state.me.id : null;
   useEffect(() => {
@@ -289,6 +303,7 @@ export function SharingProvider({ children }: { children: ReactNode }) {
     w.postMessage({
       type: "start",
       model: model.webllmId,
+      contextWindow: model.contextWindow,
       apiUrl: config.data.apiPublicUrl,
       deviceKey: deviceKey(),
       gpu: gpu.info,
@@ -310,7 +325,10 @@ export function SharingProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Sharing>(
     () => ({
       gpu,
+      models,
+      selectedId,
       model,
+      select,
       run,
       active,
       progress,
@@ -326,7 +344,10 @@ export function SharingProvider({ children }: { children: ReactNode }) {
     }),
     [
       gpu,
+      models,
+      selectedId,
       model,
+      select,
       run,
       active,
       progress,

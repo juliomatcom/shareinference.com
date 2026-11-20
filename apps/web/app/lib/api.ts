@@ -77,6 +77,14 @@ export interface PublicModel {
   queueDepth: number;
 }
 
+/** The model the UI suggests first (the Share page marks it "Recommended"; the Playground starts on it). */
+export const DEFAULT_MODEL_ID = "qwen3.5-4b";
+export const pickDefaultModel = <T extends { id: string }>(models: T[]): T | undefined =>
+  models.find((m) => m.id === DEFAULT_MODEL_ID) ?? models[0];
+
+// GPU memory each model needs, in MB (WebLLM's catalog; the api does not send it). Unknown ids show no size.
+export const MODEL_VRAM_MB: Record<string, number> = { "qwen3.5-2b": 2245, "qwen3.5-4b": 3868, "qwen3.5-9b": 6433 };
+
 // Credit prices, mirrored from the api (wiki-llm/economy.md): the Playground shows what a reply cost without asking the
 // server. Keep in step with `apps/api/src/core/pricing.ts`; the server's settlement is the truth.
 export const INPUT_CREDITS_PER_TOKEN = 1;
