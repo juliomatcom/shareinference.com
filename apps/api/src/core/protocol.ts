@@ -50,6 +50,8 @@ export const readyFrame = z
     model: text(128).min(1),
     gpu: gpuSchema,
     loadMs: z.number().int().min(0).max(3_600_000),
+    /** Context window the worker loaded (tokens). Omitted by older tabs, which always ran WebLLM's 4096. */
+    contextWindow: z.number().int().min(256).max(1_048_576).optional(),
   })
   .strict();
 export const heartbeatFrame = z.object({ type: z.literal("heartbeat") }).strict();

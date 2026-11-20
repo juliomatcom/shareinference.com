@@ -140,3 +140,21 @@ describe("worker registry", () => {
     });
   });
 });
+
+describe("worker registry: loaded context window", () => {
+  it("only offers and counts workers whose window fits the job; a tab that does not say has 4096", () => {
+    const { registry } = setup();
+    readyWorker(registry, "old", "u1"); // no window announced
+    expect(registry.get("old")!.contextWindow).toBe(4096);
+    registry.register("new", "u2", "device-new");
+    expect(registry.markReady("new", MODEL, GPU, 16_384)).toBe(true);
+
+    expect(registry.onlineCount(MODEL.webllmId)).toBe(2);
+    expect(registry.onlineCount(MODEL.webllmId, undefined, 8_000)).toBe(1);
+    expect(registry.onlineCount(MODEL.webllmId, undefined, 20_000)).toBe(0);
+    for (let i = 0; i < 20; i++) {
+      expect(registry.pickRandomIdle(MODEL.webllmId, "consumer", undefined, 8_000)?.id).toBe("new");
+    }
+    expect(registry.pickRandomIdle(MODEL.webllmId, "consumer", undefined, 20_000)).toBeUndefined();
+  });
+});

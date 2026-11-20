@@ -4,6 +4,7 @@ import { devSession } from "./adapters/devSession.js";
 import { createLogger } from "./adapters/logger.js";
 import { createCore } from "./adapters/postgres/core.js";
 import { createDb } from "./adapters/postgres/db.js";
+import { contextWindowFor } from "./core/models.js";
 import { outboundFrame, type OutboundFrame } from "./core/protocol.js";
 
 // DEV/TEST ONLY: a provider that needs no browser or GPU. It signs in as the local test user <login> (the same code path
@@ -102,7 +103,7 @@ async function main(): Promise<void> {
     const frame: OutboundFrame = parsed.data;
     if (frame.type === "welcome") {
       log.info("welcome", { worker_id: frame.workerId });
-      send({ type: "ready", model: MODEL, gpu: GPU, loadMs: 1 });
+      send({ type: "ready", model: MODEL, gpu: GPU, loadMs: 1, contextWindow: contextWindowFor("qwen3.5-4b") });
       heartbeat = setInterval(() => send({ type: "heartbeat" }), 5_000);
     } else if (frame.type === "job") {
       if (job) send({ type: "error", id: frame.id, code: "busy", message: "a job is running" });

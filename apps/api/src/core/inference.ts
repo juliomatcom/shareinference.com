@@ -46,6 +46,9 @@ export async function onlineModels(deps: Deps): Promise<{ id: string }[]> {
   return models.filter((m) => deps.registry.onlineCount(m.webllmId) > 0);
 }
 
+/** Room a worker must have for the reply when the request names no `max_tokens` (the rest of the default may be cut). */
+const MIN_REPLY_TOKENS = 1024;
+
 /**
  * Admission, then the job: model lookup, lane from the balance, free-tier account age, rate limits, a `jobs` row, and
  * the dispatcher. `sinkFor` gets the job id (used in response ids) and receives every later event; nothing is called
@@ -60,22 +63,33 @@ export async function startChat(
 ): Promise<ChatStart> {
   const model = await deps.models.findEnabledById(body.model);
   if (!model) return refuse(404, "model_not_found", `The model '${body.model}' does not exist`);
-  if (promptTokenEstimate(body) + (body.max_tokens ?? DEFAULT_MAX_TOKENS) > model.contextWindow) {
+  // Without max_tokens the reply gets the default, trimmed to what the window leaves after the prompt (a long prompt
+  // with no explicit max_tokens still fits). An explicit max_tokens is the client's choice and must fit as is.
+  const promptEstimateTokens = promptTokenEstimate(body);
+  const maxTokens = body.max_tokens ?? Math.min(DEFAULT_MAX_TOKENS, model.contextWindow - promptEstimateTokens);
+  if (maxTokens < 1 || promptEstimateTokens + maxTokens > model.contextWindow) {
     return refuse(
       400,
       "invalid_request",
       `The messages plus max_tokens exceed this model's context length of ${model.contextWindow} tokens`,
     );
   }
-  // A consumer is never routed to its own worker, so its own GPU alone is the same as nobody serving.
-  if (deps.registry.onlineCount(model.webllmId, user.id) === 0) {
-    const own = deps.registry.onlineCount(model.webllmId) > 0;
+  // A consumer is never routed to its own worker, so its own GPU alone is the same as nobody serving. Only workers
+  // that loaded a window big enough for this job count (a tab started before a window increase still has the old one).
+  // The prompt must fit as is; a reply that outgrows a smaller window just ends there (finish `length`), so without an
+  // explicit max_tokens a worker needs room for the prompt plus a minimum reply, not the whole default.
+  const needed = promptEstimateTokens + (body.max_tokens ?? Math.min(maxTokens, MIN_REPLY_TOKENS));
+  if (deps.registry.onlineCount(model.webllmId, user.id, needed) === 0) {
+    const own = deps.registry.onlineCount(model.webllmId, undefined, needed) > 0;
+    const small = deps.registry.onlineCount(model.webllmId, user.id) > 0;
     return refuse(
       503,
       "no_providers",
       own
         ? "Only your own GPU is serving this model right now, and you cannot be routed to yourself. Try again when other providers are online."
-        : "No provider is serving this model right now",
+        : small
+          ? "The providers online run a smaller context window than this request needs. Try a shorter request, or try again soon."
+          : "No provider is serving this model right now",
     );
   }
 
@@ -185,6 +199,8 @@ export async function startChat(
       consumerId: user.id,
       lane,
       balance,
+      source,
+      minContext: needed,
       model: {
         id: model.id,
         webllmId: model.webllmId,
@@ -192,7 +208,7 @@ export async function startChat(
         priceMultiplier: model.priceMultiplier,
       },
       messages: body.messages,
-      params: jobParams(body),
+      params: jobParams(body, maxTokens),
     },
     {
       onStart({ providerId, workerId }) {

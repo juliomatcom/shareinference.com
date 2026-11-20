@@ -39,11 +39,11 @@ describe("chat request validation", () => {
   });
 
   it("forwards only whitelisted params, with max_tokens defaulted, and nulls as unset", () => {
-    expect(jobParams(body("x"))).toEqual({ max_tokens: 1024 });
+    expect(jobParams(body("x"))).toEqual({ max_tokens: 4096 });
     expect(
       jobParams(body("x", { temperature: null, stop: "END", chat_template_kwargs: { enable_thinking: false } })),
     ).toEqual({
-      max_tokens: 1024,
+      max_tokens: 4096,
       stop: ["END"],
       enable_thinking: false,
     });

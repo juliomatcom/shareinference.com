@@ -283,14 +283,14 @@ describe.skipIf(!testDatabaseUrl)("end to end: openai SDK -> api -> fake provide
     });
     for (const body of [
       { model: "qwen3.5-4b", messages, tools: [] },
-      { model: "qwen3.5-4b", messages, max_tokens: 5000 },
+      { model: "qwen3.5-4b", messages, max_tokens: 9000 },
       { model: "qwen3.5-4b", messages: [{ role: "user", content: [{ type: "text", text: "x" }] }] },
       { model: "qwen3.5-4b", messages: [] },
-      { model: "qwen3.5-4b", messages: [{ role: "user", content: "x".repeat(4096 * 4 + 1) }] },
-      // 9000 ASCII characters (~2250 tokens) plus 2048 completion tokens do not fit 4096.
-      { model: "qwen3.5-4b", messages: [{ role: "user", content: "x".repeat(9000) }], max_tokens: 2048 },
+      { model: "qwen3.5-4b", messages: [{ role: "user", content: "x".repeat(16384 * 4 + 1) }] },
+      // 60000 ASCII characters (~15000 tokens) plus 2048 completion tokens do not fit 16384.
+      { model: "qwen3.5-4b", messages: [{ role: "user", content: "x".repeat(60000) }], max_tokens: 2048 },
       // Non-ASCII text counts a token per character.
-      { model: "qwen3.5-4b", messages: [{ role: "user", content: "é".repeat(3100) }] },
+      { model: "qwen3.5-4b", messages: [{ role: "user", content: "é".repeat(16500) }] },
       { model: "qwen3.5-4b", messages, stop: [""] },
     ]) {
       const res = await call(body);

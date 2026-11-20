@@ -94,7 +94,9 @@ describe.skipIf(!testDatabaseUrl)("provider WebSocket (/v1/worker)", () => {
     w.send({ type: "ready", model: MODEL, gpu: GPU, loadMs: 5 });
     return w;
   }
-  const online = async () => (await request(h.app).get("/public/models")).body.models[0].workersOnline as number;
+  const online = async () =>
+    (await request(h.app).get("/public/models")).body.models.find((m: { id: string }) => m.id === "qwen3.5-4b")
+      .workersOnline as number;
   const eventually = async (check: () => Promise<boolean> | boolean) => {
     for (let i = 0; i < 200; i++) {
       if (await check()) return;
@@ -130,8 +132,19 @@ describe.skipIf(!testDatabaseUrl)("provider WebSocket (/v1/worker)", () => {
       expect((await request(h.app).get("/public/config")).body).toEqual({ apiPublicUrl: "http://localhost:4000" });
       const res = await request(h.app).get("/public/models");
       expect(res.status).toBe(200);
+      const row = (id: string, webllmId: string, priceMultiplier = 1) => ({
+        id,
+        webllmId,
+        contextWindow: 16384,
+        priceMultiplier,
+        workersOnline: 0,
+        queueDepth: 0,
+      });
       expect(res.body.models).toEqual([
-        { id: "qwen3.5-4b", webllmId: MODEL, contextWindow: 4096, priceMultiplier: 1, workersOnline: 0, queueDepth: 0 },
+        row("gemma-4-e2b", "gemma-4-E2B-it-q4f16_1-MLC"),
+        row("qwen3.5-2b", "Qwen3.5-2B-q4f16_1-MLC"),
+        row("qwen3.5-4b", MODEL),
+        row("qwen3.5-9b", "Qwen3.5-9B-q4f16_1-MLC", 2),
       ]);
     });
   });

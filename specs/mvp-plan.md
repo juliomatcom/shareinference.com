@@ -198,7 +198,7 @@ Ordered by risk. Each item has the check that settles it.
 - ✔ V7: `usage` has `prompt_tokens`, `completion_tokens`, `total_tokens` and `extra.{prefill_tokens_per_s, decode_tokens_per_s, time_to_first_token_s, …}`. With `resetChat()` per job, the resumed conversation billed its full history (67 prompt tokens) → D27 works as intended.
 - ⚠ Thinking: every response starts with a literal `<think>\n\n</think>\n\n`, even with `enable_thinking: false` (off: 4 completion tokens, on: 8 — on a trivial prompt the model emitted an empty think block itself). OpenAI clients must not see raw tags → see Q11.
 - ⚠ Device identity: the browser exposes only `vendor: "apple"`, `architecture: "metal-3"` (no chip model); the user agent is frozen ("Intel Mac OS X 10_15_7"); `navigator.deviceMemory` is capped (reported 32 on a 48 GB machine). The leaderboard's "MacStudio_M4Max / 48GB Unified" **cannot be auto-detected** → see Q12. `maxBufferSize` = 4 GiB.
-- Not tested (deferred, not blocking): Wake Lock, larger `context_window_size` (MVP stays at 4096), hidden periods well beyond 5 min.
+- Not tested (deferred, not blocking): Wake Lock, larger `context_window_size` (MVP stays at 4096; since 2026-11-20 the worker applies the api's `CONTEXT_WINDOWS` entry (code, not a DB column) as the override, so raising it is a code change: open S1b: find the largest window per model on the M5, with GPU memory from Chrome Task Manager and tokens/s), hidden periods well beyond 5 min.
 
 ---
 

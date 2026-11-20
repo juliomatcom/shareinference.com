@@ -1,15 +1,17 @@
 import type { Clock, Logger, Scheduler } from "./ports.js";
 import { CLOSE, type OutboundFrame, type chunkFrame, type doneFrame, type errorFrame } from "./protocol.js";
 import type { Registry } from "./registry.js";
-import type { Lane } from "./types.js";
+import type { JobSource, Lane } from "./types.js";
 import type { z } from "zod";
 
 // In-memory routing and queues (wiki-llm/architecture.md). Pure: it talks to workers through `WorkerLink` and to
 // consumers through `JobSink`, so tests drive it with fakes and a manual scheduler.
 export const MAX_QUEUED_PER_MODEL = 100;
-export const MAX_QUEUE_WAIT_MS = 30_000;
-export const FIRST_CHUNK_TIMEOUT_MS = 30_000;
-export const JOB_TIMEOUT_MS = 180_000;
+export const MAX_QUEUE_WAIT_MS = 300_000;
+export const FIRST_CHUNK_TIMEOUT_MS = 90_000;
+/** Total job time: 10 min for API requests, 5 min for the web Playground. */
+export const JOB_TIMEOUT_MS = 600_000;
+export const PLAYGROUND_JOB_TIMEOUT_MS = 300_000;
 /** After a cancel or timeout the worker must confirm with `done`/`error` within this time, or it is dropped. */
 export const CANCEL_GRACE_MS = 10_000;
 /** A job runs at most twice: one requeue after a failure before the first chunk. */
@@ -47,6 +49,10 @@ export interface JobRequest {
   model: DispatchModel;
   messages: JobFrame["messages"];
   params: JobFrame["params"];
+  /** Picks the total timeout; omitted means an API request. */
+  source?: JobSource;
+  /** Smallest context window a worker needs for this job; omitted means prompt estimate + `max_tokens`. */
+  minContext?: number;
 }
 
 export type FailCode = "provider_failed" | "network_busy" | "no_providers";
@@ -206,7 +212,7 @@ export function createDispatcher(deps: {
     e.state = "queued";
     e.queuedAt = now();
     queueOf(e.req.model.webllmId).push(e);
-    // The 30 s budget is for the whole time a job spends queued, however many attempts it takes.
+    // The queue budget (MAX_QUEUE_WAIT_MS) is for the whole time a job spends queued, however many attempts it takes.
     e.cancelWait = scheduler.after(Math.max(0, MAX_QUEUE_WAIT_MS - e.waited), () => {
       if (e.state !== "queued") return;
       removeQueued(e);
@@ -238,7 +244,8 @@ export function createDispatcher(deps: {
       let started = false;
       for (const e of [...q].sort(order)) {
         // The consumer's own worker is never eligible, so a lower-ranked job may be served first.
-        const worker = registry.pickRandomIdle(webllmId, e.req.consumerId, e.avoid);
+        const need = e.req.minContext ?? promptEstimate(e.req.messages) + (e.req.params.max_tokens ?? 0);
+        const worker = registry.pickRandomIdle(webllmId, e.req.consumerId, e.avoid, need);
         if (!worker) continue;
         removeQueued(e);
         start(e, worker.id, worker.userId);
@@ -273,7 +280,9 @@ export function createDispatcher(deps: {
     e.run = run;
     runs.set(workerId, run);
     run.cancelFirst = scheduler.after(FIRST_CHUNK_TIMEOUT_MS, () => timedOut(run, "first_chunk_timeout"));
-    run.cancelTotal = scheduler.after(JOB_TIMEOUT_MS, () => timedOut(run, "job_timeout"));
+    run.cancelTotal = scheduler.after(req.source === "playground" ? PLAYGROUND_JOB_TIMEOUT_MS : JOB_TIMEOUT_MS, () =>
+      timedOut(run, "job_timeout"),
+    );
     call(() => e.sink.onStart?.({ providerId, workerId }));
     // Only the messages and whitelisted params: never the consumer's identity.
     const frame: JobFrame = { type: "job", id: req.jobId, messages: req.messages, params: req.params };

@@ -4,6 +4,7 @@ import {
   CANCEL_GRACE_MS,
   FIRST_CHUNK_TIMEOUT_MS,
   JOB_TIMEOUT_MS,
+  PLAYGROUND_JOB_TIMEOUT_MS,
   MAX_QUEUED_PER_MODEL,
   MAX_QUEUE_WAIT_MS,
   createDispatcher,
@@ -315,7 +316,7 @@ describe("dispatcher", () => {
     expect(t.registry.get(holder)!.state).toBe("busy");
   });
 
-  it("times out 30 s without a first chunk: cancels the worker, retries elsewhere, drops it when it stays silent", () => {
+  it("times out 90 s without a first chunk: cancels the worker, retries elsewhere, drops it when it stays silent", () => {
     const t = setup();
     t.worker("w1", "p1");
     t.worker("w2", "p2");
@@ -349,7 +350,7 @@ describe("dispatcher", () => {
     expect(a.events).toContain("start:w1");
   });
 
-  it("times out a job at 180 s total: provider_failed after the first chunk", () => {
+  it("times out a job at 600 s total: provider_failed after the first chunk", () => {
     const t = setup();
     t.worker("w1", "p1");
     const a = t.job("c1");
@@ -363,7 +364,29 @@ describe("dispatcher", () => {
     expect(t.dropped).toEqual([{ workerId: "w1", code: 4408 }]);
   });
 
-  it("a queued job waits at most 30 s, then network_busy", () => {
+  it("a Playground job times out at 300 s total", () => {
+    const t = setup();
+    t.worker("w1", "p1");
+    const web = t.job("c1", { source: "playground" });
+    t.chunk("w1", web.jobId);
+    t.scheduler.advance(PLAYGROUND_JOB_TIMEOUT_MS - 1);
+    expect(web.failure()).toBeUndefined();
+    t.scheduler.advance(1);
+    expect(web.failure()).toBe("provider_failed");
+  });
+
+  it("an API job is still running at 300 s and times out at 600 s", () => {
+    const t = setup();
+    t.worker("w1", "p1");
+    const api = t.job("c1");
+    t.chunk("w1", api.jobId);
+    t.scheduler.advance(PLAYGROUND_JOB_TIMEOUT_MS);
+    expect(api.failure()).toBeUndefined();
+    t.scheduler.advance(JOB_TIMEOUT_MS - PLAYGROUND_JOB_TIMEOUT_MS);
+    expect(api.failure()).toBe("provider_failed");
+  });
+
+  it("a queued job waits at most 300 s, then network_busy", () => {
     const t = setup();
     t.worker("w1", "p1");
     const running = t.job("c1");
@@ -524,7 +547,7 @@ describe("dispatcher", () => {
     expect(b.result()!.usage.promptTokens).toBe(200 + 16 + 32);
   });
 
-  it("the 30 s queue budget covers all attempts of a job, not each one", () => {
+  it("the 300 s queue budget covers all attempts of a job, not each one", () => {
     const t = setup();
     t.worker("w1", "p1");
     const running = t.job("c0");
@@ -534,8 +557,8 @@ describe("dispatcher", () => {
     t.done("w1", running.jobId);
     expect(a.events).toEqual(["start:w1"]); // waited 20 s
     t.dispatcher.onError("w1", { type: "error", id: a.jobId, code: "x", message: "x" });
-    // No other worker: the retry has only the 10 s that are left.
-    t.scheduler.advance(9_999);
+    // No other worker: the retry has only what is left of the budget.
+    t.scheduler.advance(MAX_QUEUE_WAIT_MS - 20_000 - 1);
     expect(a.failure()).toBeUndefined();
     t.scheduler.advance(1);
     expect(a.failure()).toBe("network_busy");
@@ -563,7 +586,11 @@ describe("dispatcher", () => {
   it("caps reported usage at max_tokens, chunks received and the context window", () => {
     const t = setup();
     t.worker("w1", "p1");
-    const a = t.job("c1", { params: { max_tokens: 5 }, messages: [{ role: "user", content: "x".repeat(10_000) }] });
+    const a = t.job("c1", {
+      params: { max_tokens: 5 },
+      messages: [{ role: "user", content: "x".repeat(10_000) }],
+      minContext: 1, // the worker is told nothing about its window here: this test is about the usage clamp
+    });
     for (let i = 0; i < 4; i++) t.chunk("w1", a.jobId);
     t.done("w1", a.jobId, { promptTokens: 999_999, completionTokens: 1_000, decodeTokensPerS: 7 });
     expect(a.result()!.usage).toEqual({ promptTokens: 4096, completionTokens: 4, decodeTokensPerS: 7 });

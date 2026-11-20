@@ -42,7 +42,10 @@ export async function workerReady(
   // The device strings are shown publicly: store only the cleaned ones.
   const gpu = sanitizeGpu(frame.gpu);
   // Second `ready`, replaced or dropped meanwhile.
-  if (!isCurrent() || !deps.registry.markReady(workerId, { id: model.id, webllmId: model.webllmId }, gpu)) {
+  if (
+    !isCurrent() ||
+    !deps.registry.markReady(workerId, { id: model.id, webllmId: model.webllmId }, gpu, frame.contextWindow)
+  ) {
     return { ok: false, close: CLOSE.badFrame };
   }
   await deps.workers.setReady(workerId, gpu, model.webllmId, deps.clock.now());

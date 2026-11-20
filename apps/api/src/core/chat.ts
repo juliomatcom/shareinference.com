@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { JobRequest } from "./dispatcher.js";
 
-export const DEFAULT_MAX_TOKENS = 1024;
-export const MAX_MAX_TOKENS = 2048;
+export const DEFAULT_MAX_TOKENS = 4096;
+export const MAX_MAX_TOKENS = 8192;
 
 // Exactly the fields wiki-llm/api.md accepts; anything else is a 400. Clients often send `null` for "unset".
 const message = z.object({ role: z.enum(["system", "user", "assistant"]), content: z.string() }).strict();
@@ -27,10 +27,10 @@ export const chatRequest = z
 export type ChatRequest = z.infer<typeof chatRequest>;
 
 /** The whitelisted generation params handed to a provider (nothing else of the request goes along). */
-export function jobParams(body: ChatRequest): JobRequest["params"] {
+export function jobParams(body: ChatRequest, maxTokens?: number): JobRequest["params"] {
   const stop = body.stop == null ? undefined : Array.isArray(body.stop) ? body.stop : [body.stop];
   const thinking = body.enable_thinking ?? body.chat_template_kwargs?.enable_thinking;
-  const params: JobRequest["params"] = { max_tokens: body.max_tokens ?? DEFAULT_MAX_TOKENS };
+  const params: JobRequest["params"] = { max_tokens: maxTokens ?? body.max_tokens ?? DEFAULT_MAX_TOKENS };
   if (body.temperature != null) params.temperature = body.temperature;
   if (body.top_p != null) params.top_p = body.top_p;
   if (stop && stop.length > 0) params.stop = stop;

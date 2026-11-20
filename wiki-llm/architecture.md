@@ -24,17 +24,17 @@ Compose services: `db` (profile `localdb`, volume `db-data`), `api` (container p
 - One queue per model with two lanes: **priority** (consumer balance > 0) is always served before **fair** (balance ≤ 0). Inside the fair lane, higher balance first, then arrival order.
 - Routing is random and blind: consumers choose a model, never a provider. The provider's public name is revealed only in the consumer's history after the job ends.
 - A worker never receives a job from its own owner.
-- Limits: max 100 queued requests per model (the 101st → `503 network_busy` at once); max wait 30 s → `503 network_busy`. A job that fails before its first chunk is requeued at the front of its lane (before any other job of that lane); a job whose only idle worker belongs to its consumer is skipped in favour of the next job. `GET /public/models` reports the queue depth per model.
+- Limits: max 100 queued requests per model (the 101st → `503 network_busy` at once); max wait 300 s → `503 network_busy`. A job that fails before its first chunk is requeued at the front of its lane (before any other job of that lane); a job whose only idle worker belongs to its consumer is skipped in favour of the next job. `GET /public/models` reports the queue depth per model.
 
 ## Failure rules
 
-- Worker disconnects, errors or times out **before the first chunk** → requeue once at the front of its lane, to a different worker than the one that failed; second failure → `502 provider_failed`. A `done` with no (or only whitespace) output counts as a worker failure. The 30 s queue wait is one budget per job across attempts: a retry has only what is left of it (nothing left → `provider_failed`).
+- Worker disconnects, errors or times out **before the first chunk** → requeue once at the front of its lane, to a different worker than the one that failed; second failure → `502 provider_failed`. A `done` with no (or only whitespace) output counts as a worker failure. The 300 s queue wait is one budget per job across attempts: a retry has only what is left of it (nothing left → `provider_failed`).
 - **After the first chunk** a provider failure ends the stream with an error event; no credits move (consumer not charged, provider not paid).
 - Consumer disconnects → send `cancel` to the worker. Before the first chunk no credits move. After output was delivered the consumer is billed for it: the worker's `done { abort }` within the 10 s grace is settled with usage capped at the chunks delivered ([economy.md](economy.md)); without it nothing moves.
-- Per-job timeout: 30 s to first chunk, 180 s total.
+- Per-job timeout: 90 s to first chunk (a long prompt's prefill runs at roughly 300-500 tokens/s), total 600 s for API requests and 300 s for the web Playground (`FIRST_CHUNK_TIMEOUT_MS`, `JOB_TIMEOUT_MS`, `PLAYGROUND_JOB_TIMEOUT_MS` in `dispatcher.ts`). The web proxy timeout must stay above the largest total.
 - After a cancel or timeout the worker stays busy until it answers `done`/`error` for that job; silent for 10 s → its socket is dropped (4408), see [worker-protocol.md](worker-protocol.md).
 - Heartbeat: a worker silent for 15 s is dropped (its job follows the rules above). A replaced socket (same device reconnected) counts as a dropped worker for its job.
-- The queue is not flushed when the last worker leaves: waiting jobs wait for a returning provider (a page reload is a brief reconnect) until the 30 s limit.
+- The queue is not flushed when the last worker leaves: waiting jobs wait for a returning provider (a page reload is a brief reconnect) until the queue-wait limit (300 s).
 - Output beyond what `max_tokens` allows is cut off like a failure after the first chunk.
 
 ## Thinking output
@@ -43,4 +43,6 @@ Models may emit `<think>…</think>` at the start of the output. The api strips 
 
 ## Model catalog
 
-The `models` table maps a public id (e.g. `qwen3.5-4b`) to the WebLLM id (e.g. `Qwen3.5-4B-q4f16_1-MLC`), context window, VRAM need and `price_multiplier`. MVP ships one enabled model: `qwen3.5-4b` → `Qwen3.5-4B-q4f16_1-MLC`, context 4096. WebLLM `@mlc-ai/web-llm@0.2.89`, loaded pinned from jsDelivr.
+The `models` table maps a public id (e.g. `qwen3.5-4b`) to the WebLLM id (e.g. `Qwen3.5-4B-q4f16_1-MLC`), VRAM need and `price_multiplier` (the context window is in code, see below). The catalog has four enabled models: `qwen3.5-2b`, `qwen3.5-4b` and `qwen3.5-9b` (WebLLM `Qwen3.5-<size>-q4f16_1-MLC`) and `gemma-4-e2b` (`gemma-4-E2B-it-q4f16_1-MLC`, loaded and answered on a real GPU 2026-11-20). The default, `qwen3.5-4b`, is a web constant (`DEFAULT_MODEL_ID` in `apps/web/app/lib/api.ts`), not catalog data. WebLLM `@mlc-ai/web-llm@0.2.89`, loaded pinned from jsDelivr.
+
+**Context window:** `CONTEXT_WINDOWS` in `apps/api/src/core/models.ts` is the single place for a model's window (default 4096; not a database column, so changing it is a redeploy). The api uses it to admit requests (prompt estimate + `max_tokens` must fit) and returns it as `contextWindow` in `/public/models`; the Share page passes that to WebLLM as the `context_window_size` override when loading (`share-worker.js`). WebLLM's prebuilt records ship 4096 as that override, not as a property of the wasm (the lib filenames carry no window size; WebLLM maintainers confirmed this in [web-llm#752](https://github.com/mlc-ai/web-llm/issues/752), 2026-04-25), and the runtime allocates the KV cache for the whole window at load (`maxTotalSeqLen = context_window_size`), so a larger window costs GPU memory up front. Each worker announces the window it loaded in `ready` (`contextWindow`; 4096 for tabs that do not say), and routing only offers it jobs that fit, so after raising an entry a tab that still runs the old window simply stops getting long jobs until its provider restarts sharing; a request no online worker can fit gets `503 no_providers` at once. How far each model can go is measured per device, see the plan's verification log.

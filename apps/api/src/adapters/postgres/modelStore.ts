@@ -1,4 +1,4 @@
-import type { Model } from "../../core/models.js";
+import { contextWindowFor, type Model } from "../../core/models.js";
 import type { ModelStore } from "../../core/ports.js";
 import type { Db } from "./db.js";
 import type { Row } from "./rows.js";
@@ -6,7 +6,7 @@ import type { Row } from "./rows.js";
 const toModel = (r: Row): Model => ({
   id: r.id as string,
   webllmId: r.webllm_id as string,
-  contextWindow: r.context_window as number,
+  contextWindow: contextWindowFor(r.id as string),
   vramMb: r.vram_mb as number,
   priceMultiplier: r.price_multiplier as number,
   enabled: r.enabled as boolean,

@@ -3,7 +3,7 @@
 ## Prices
 
 - Integer credits. `credits = (promptTokens × 1 + completionTokens × 5) × model.price_multiplier`. Thinking tokens are completion tokens.
-- Constants live in one core module (`INPUT_CREDITS_PER_TOKEN = 1`, `OUTPUT_CREDITS_PER_TOKEN = 5`). MVP has one model with multiplier 1. The web Playground mirrors the two constants in `apps/web/app/lib/api.ts` to show per-reply credits (`priceMultiplier` comes from `GET /public/models`); change them in both places.
+- Constants live in one core module (`INPUT_CREDITS_PER_TOKEN = 1`, `OUTPUT_CREDITS_PER_TOKEN = 5`). Multipliers: `qwen3.5-2b` x1, `qwen3.5-4b` x1, `qwen3.5-9b` x2. A provider earns the same per token on any model of equal multiplier, so a cheap-to-run small model is attractive; integer multipliers cannot price below x1. The web Playground mirrors the two constants in `apps/web/app/lib/api.ts` to show per-reply credits (`priceMultiplier` comes from `GET /public/models`); change them in both places.
 
 ## Settlement
 

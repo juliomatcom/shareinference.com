@@ -1,3 +1,4 @@
+import { DEFAULT_CONTEXT_WINDOW } from "./models.js";
 import type { Gpu } from "./protocol.js";
 import type { Clock, Secrets } from "./ports.js";
 
@@ -20,6 +21,8 @@ export interface LiveWorker {
   /** Set once `ready` is accepted. */
   model: { id: string; webllmId: string } | null;
   gpu: Gpu | null;
+  /** Tokens of context the worker loaded (set at `ready`; 4096 for tabs that do not say). */
+  contextWindow: number;
   jobId: string | null;
   /** Set when the owner is found suspended: the worker is no longer offered jobs. */
   suspended: boolean;
@@ -33,7 +36,7 @@ export interface Registry {
   /** Same worker id twice means the device reconnected: the old entry is replaced (`replaced: true`). */
   register(id: string, userId: string, deviceKey: string): { ok: true; replaced: boolean } | { ok: false };
   /** connected -> ready (idle); false in any other state. */
-  markReady(id: string, model: { id: string; webllmId: string }, gpu: Gpu): boolean;
+  markReady(id: string, model: { id: string; webllmId: string }, gpu: Gpu, contextWindow?: number): boolean;
   markBusy(id: string, jobId: string): boolean;
   markIdle(id: string): boolean;
   /** Records a sign of life; true when the caller should persist `last_seen_at` now. */
@@ -48,9 +51,17 @@ export interface Registry {
   /** Workers that can serve some model (ready or busy). */
   readyCount(): number;
   /** Workers that can serve this WebLLM model (ready or busy), without those of `excludeUserId` when given. */
-  onlineCount(webllmId: string, excludeUserId?: string): number;
-  /** A random idle worker for the model, never one owned by `excludeUserId` (a consumer is not served by itself) nor `excludeWorkerId`. */
-  pickRandomIdle(webllmId: string, excludeUserId: string, excludeWorkerId?: string): LiveWorker | undefined;
+  onlineCount(webllmId: string, excludeUserId?: string, minContext?: number): number;
+  /**
+   * A random idle worker for the model, never one owned by `excludeUserId` (a consumer is not served by itself) nor
+   * `excludeWorkerId`, and only one whose loaded window is at least `minContext` tokens.
+   */
+  pickRandomIdle(
+    webllmId: string,
+    excludeUserId: string,
+    excludeWorkerId?: string,
+    minContext?: number,
+  ): LiveWorker | undefined;
   size(): number;
 }
 
@@ -87,6 +98,7 @@ export function createRegistry(deps: {
         connectedAt: clock.now(),
         model: null,
         gpu: null,
+        contextWindow: DEFAULT_CONTEXT_WINDOW,
         jobId: null,
         suspended: false,
         lastSeen: t,
@@ -94,12 +106,13 @@ export function createRegistry(deps: {
       });
       return { ok: true, replaced: replacing };
     },
-    markReady(id, model, gpu) {
+    markReady(id, model, gpu, contextWindow = DEFAULT_CONTEXT_WINDOW) {
       const w = workers.get(id);
       if (!w || w.state !== "connected") return false;
       w.state = "ready";
       w.model = model;
       w.gpu = gpu;
+      w.contextWindow = contextWindow;
       return true;
     },
     markBusy(id, jobId) {
@@ -147,21 +160,28 @@ export function createRegistry(deps: {
       for (const w of workers.values()) if (w.state !== "connected") n++;
       return n;
     },
-    onlineCount(webllmId, excludeUserId) {
+    onlineCount(webllmId, excludeUserId, minContext = 0) {
       let n = 0;
       for (const w of workers.values()) {
-        if (w.state !== "connected" && w.model?.webllmId === webllmId && w.userId !== excludeUserId) n++;
+        if (
+          w.state !== "connected" &&
+          w.model?.webllmId === webllmId &&
+          w.userId !== excludeUserId &&
+          w.contextWindow >= minContext
+        )
+          n++;
       }
       return n;
     },
-    pickRandomIdle(webllmId, excludeUserId, excludeWorkerId) {
+    pickRandomIdle(webllmId, excludeUserId, excludeWorkerId, minContext = 0) {
       const eligible = [...workers.values()].filter(
         (w) =>
           w.state === "ready" &&
           !w.suspended &&
           w.model?.webllmId === webllmId &&
           w.userId !== excludeUserId &&
-          w.id !== excludeWorkerId,
+          w.id !== excludeWorkerId &&
+          w.contextWindow >= minContext,
       );
       return eligible.length === 0 ? undefined : eligible[secrets.int(eligible.length)];
     },
