@@ -7,8 +7,15 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json apps/api/
 COPY libs/logger-ts/package.json libs/logger-ts/
 
+# TypeScript compiles on the build machine's own architecture (fast, no qemu); only the production dependencies, which
+# may include native modules, are installed for the target platform (the `prod` stage).
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS build
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/api/package.json apps/api/
+COPY libs/logger-ts/package.json libs/logger-ts/
 # `@shareinference/api...`: the api and the workspace libraries it depends on.
-FROM deps AS build
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter "@shareinference/api..."
 COPY libs/logger-ts/tsconfig.json libs/logger-ts/tsconfig.build.json libs/logger-ts/
