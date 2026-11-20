@@ -58,11 +58,11 @@ ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 443/udp
 ufw enable
 ```
 
-**Automatic security updates:**
+**OS updates are manual** (no `unattended-upgrades`, so nothing changes under the running stack by surprise). Roughly once a month, and right away after a Debian security announcement, take a snapshot or backup first, then:
 
 ```sh
-apt-get install -y unattended-upgrades
-dpkg-reconfigure -plow unattended-upgrades
+apt-get update && apt-get upgrade
+# reboot only if /var/run/reboot-required exists (a new kernel), then check the stack is back up
 ```
 
 **Key-only ssh.** Make sure your public key is in `/root/.ssh/authorized_keys` (mode 600) _before_ disabling passwords. Keep your current session open, and check that a new terminal can log in as `root` with the key, then:
