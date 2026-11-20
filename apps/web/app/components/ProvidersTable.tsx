@@ -39,18 +39,33 @@ export function ProvidersTable({
 }) {
   const { data, failed } = usePolled<{ providers: LeaderboardEntry[] }>("/public/leaderboard");
   const [requested, setPage] = useState(0);
-  const all = data ? (limit ? data.providers.slice(0, limit) : data.providers) : null;
+  const [liveOnly, setLiveOnly] = useState(false);
+  const shown = data && liveOnly ? data.providers.filter((p) => p.online) : data?.providers;
+  const all = shown ? (limit ? shown.slice(0, limit) : shown) : null;
   const pages = all && pageSize ? Math.max(1, Math.ceil(all.length / pageSize)) : 1;
   const page = Math.min(requested, pages - 1);
   const rows = all && pageSize ? all.slice(page * pageSize, (page + 1) * pageSize) : all;
 
   return (
     <div className={`${card} p-0`}>
+      <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-2">
+        <h2 className="text-xs font-semibold tracking-wide text-neutral-300 uppercase">Top GPU providers</h2>
+        <label className="flex shrink-0 items-center gap-2 py-1 text-sm whitespace-nowrap text-neutral-300">
+          <input
+            type="checkbox"
+            checked={liveOnly}
+            onChange={(e) => {
+              setLiveOnly(e.target.checked);
+              setPage(0);
+            }}
+            className="size-4 accent-accent"
+          />
+          Live only
+        </label>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-0 text-sm">
-          <caption className="px-4 pt-4 pb-2 text-left text-xs font-semibold tracking-wide text-neutral-300 uppercase">
-            Top GPU providers
-          </caption>
+          <caption className="sr-only">Top GPU providers</caption>
           <thead className="text-xs text-neutral-400">
             <tr className="border-b border-neutral-800">
               <th scope="col" className={th}>
@@ -115,7 +130,7 @@ export function ProvidersTable({
       )}
       {rows?.length === 0 && (
         <p className="px-4 py-6 text-center text-sm text-neutral-400">
-          No provider has served a request yet.{" "}
+          {liveOnly ? "No provider is live right now." : "No provider has served a request yet."}{" "}
           <Link href="/share" className="text-accent">
             Be the first
           </Link>
