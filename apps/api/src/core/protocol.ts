@@ -115,7 +115,10 @@ export const outboundFrame = z.discriminatedUnion("type", [
       promptTokens: total,
       completionTokens: total,
       creditsEarned: total,
-      lastJob: z.object({ completionTokens: count, decodeTokensPerS: z.number(), credits: total }).strict().nullable(),
+      lastJob: z
+        .object({ promptTokens: count, completionTokens: count, decodeTokensPerS: z.number(), credits: total })
+        .strict()
+        .nullable(),
     })
     .strict(),
 ]);

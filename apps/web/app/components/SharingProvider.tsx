@@ -24,7 +24,7 @@ export interface Stats {
   promptTokens: number;
   completionTokens: number;
   creditsEarned: number;
-  lastJob: { completionTokens: number; decodeTokensPerS: number; credits: number } | null;
+  lastJob: { promptTokens: number; completionTokens: number; decodeTokensPerS: number; credits: number } | null;
 }
 const ZERO_STATS: Stats = { jobsServed: 0, promptTokens: 0, completionTokens: 0, creditsEarned: 0, lastJob: null };
 
@@ -262,9 +262,21 @@ export function SharingProvider({ children }: { children: ReactNode }) {
         case "progress":
           setProgress({ value: Number(data.progress) || 0, text: String(data.text ?? "") });
           break;
-        case "stats":
-          setStats(data.stats as Stats);
+        case "stats": {
+          // The frame's totals are the account's lifetime numbers; this session is the sum of its own jobs since
+          // "Turn ON" (it survives reconnects, which a per-connection counter would not).
+          const job = (data.stats as Stats).lastJob;
+          if (job) {
+            setStats((s) => ({
+              jobsServed: s.jobsServed + 1,
+              promptTokens: s.promptTokens + job.promptTokens,
+              completionTokens: s.completionTokens + job.completionTokens,
+              creditsEarned: s.creditsEarned + job.credits,
+              lastJob: job,
+            }));
+          }
           break;
+        }
         case "need-token":
           // A fresh single-use token for every connection attempt, including reconnects.
           void api<{ token: string }>("/worker-token", { method: "POST" }).then((res) => {

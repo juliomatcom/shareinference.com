@@ -267,7 +267,7 @@ export default function Share() {
             label="Last speed"
             value={stats.lastJob ? `${stats.lastJob.decodeTokensPerS.toFixed(1)} tokens/s` : "-"}
           />
-          <Stat label="Credits earned" value={formatNumber(stats.creditsEarned)} />
+          <Stat label="Credits earned (session)" value={formatNumber(stats.creditsEarned)} />
         </dl>
       </section>
     </main>

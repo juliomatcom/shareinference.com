@@ -18,14 +18,14 @@ Reconnect (browser): after any close the page requests a new token and the worke
 
 ## Jobs (one at a time per worker)
 
-| Direction       | Frame                                                                                                                                                     |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| server → worker | `job { id, messages, params }` — params: `temperature`, `top_p`, `max_tokens`, `stop`, `presence_penalty`, `frequency_penalty`, `seed`, `enable_thinking` |
-| worker → server | `chunk { id, delta }` — raw text, think tags included                                                                                                     |
-| worker → server | `done { id, finishReason, usage: { promptTokens, completionTokens, decodeTokensPerS } }`                                                                  |
-| worker → server | `error { id, code, message }`                                                                                                                             |
-| server → worker | `cancel { id }` — worker calls `interruptGenerate()`                                                                                                      |
-| server → worker | `stats { jobsServed, promptTokens, completionTokens, creditsEarned, lastJob: { completionTokens, decodeTokensPerS, credits } }` after each settled job    |
+| Direction       | Frame                                                                                                                                                                                                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| server → worker | `job { id, messages, params }` — params: `temperature`, `top_p`, `max_tokens`, `stop`, `presence_penalty`, `frequency_penalty`, `seed`, `enable_thinking`                                                                                                                       |
+| worker → server | `chunk { id, delta }` — raw text, think tags included                                                                                                                                                                                                                           |
+| worker → server | `done { id, finishReason, usage: { promptTokens, completionTokens, decodeTokensPerS } }`                                                                                                                                                                                        |
+| worker → server | `error { id, code, message }`                                                                                                                                                                                                                                                   |
+| server → worker | `cancel { id }` — worker calls `interruptGenerate()`                                                                                                                                                                                                                            |
+| server → worker | `stats { jobsServed, promptTokens, completionTokens, creditsEarned, lastJob: { promptTokens, completionTokens, decodeTokensPerS, credits } }` (the four totals are the account's lifetime numbers; the page shows the session by summing each `lastJob`) after each settled job |
 
 - Before every job the worker calls `engine.resetChat()` (no KV reuse between jobs).
 - The worker maps params to WebLLM: `enable_thinking` → `extra_body.enable_thinking`; streams with `stream_options.include_usage`.

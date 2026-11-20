@@ -63,6 +63,14 @@ describe("outbound frames", () => {
       },
       { type: "cancel", id: "j" },
       { type: "stats", jobsServed: 0, promptTokens: 0, completionTokens: 0, creditsEarned: 0, lastJob: null },
+      {
+        type: "stats",
+        jobsServed: 3,
+        promptTokens: 30,
+        completionTokens: 90,
+        creditsEarned: 480,
+        lastJob: { promptTokens: 10, completionTokens: 30, decodeTokensPerS: 25.5, credits: 160 },
+      },
     ]) {
       expect(outboundFrame.safeParse(frame).success).toBe(true);
     }

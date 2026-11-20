@@ -42,7 +42,7 @@ function Bar() {
         </p>
         {active && (
           <dl className="flex flex-wrap items-center gap-x-5 gap-y-1 text-neutral-300">
-            <Metric label="Credits earned" value={formatNumber(stats.creditsEarned)} accent />
+            <Metric label="Credits earned (session)" value={formatNumber(stats.creditsEarned)} accent />
             <Metric label="Requests served" value={formatNumber(stats.jobsServed)} />
           </dl>
         )}

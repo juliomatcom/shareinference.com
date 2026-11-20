@@ -194,7 +194,13 @@ describe.skipIf(!testDatabaseUrl)("end to end: openai SDK -> api -> fake provide
 
     // The provider is told its new totals, and the job frame carried nothing about the consumer.
     const stats = await provider.waitFor("stats");
-    expect(stats).toMatchObject({ jobsServed: 1, promptTokens: 12, completionTokens: 3, creditsEarned: credits });
+    expect(stats).toMatchObject({
+      jobsServed: 1,
+      promptTokens: 12,
+      completionTokens: 3,
+      creditsEarned: credits,
+      lastJob: { promptTokens: 12, completionTokens: 3, credits },
+    });
     expect(JSON.stringify(provider.frames)).not.toContain(consumerId);
     expect(JSON.stringify(provider.frames)).not.toContain(apiKey);
   });

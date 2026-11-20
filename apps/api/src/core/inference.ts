@@ -183,7 +183,12 @@ export async function startChat(
         deps.dispatcher.send(result.workerId, {
           type: "stats",
           ...totals,
-          lastJob: { completionTokens: usage.completionTokens, decodeTokensPerS: usage.decodeTokensPerS, credits },
+          lastJob: {
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            decodeTokensPerS: usage.decodeTokensPerS,
+            credits,
+          },
         });
       } catch (error) {
         // The provider's live view only; the settlement stands.
