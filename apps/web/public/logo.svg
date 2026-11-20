@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ShareInference">
+  <!-- App tile: dark, faint green edge. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f1a14"/>
+      <stop offset="1" stop-color="#050807"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#22c55e" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#22c55e" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="6" y="6" width="500" height="500" rx="106" fill="none" stroke="#22c55e" stroke-opacity="0.25" stroke-width="4"/>
+  <circle cx="256" cy="256" r="190" fill="url(#glow)"/>
+
+  <!-- Chip body and pins (same mark as the site header). -->
+  <g fill="none" stroke="#22c55e" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="136" y="136" width="240" height="240" rx="36"/>
+    <path d="M206 72v64M306 72v64M206 376v64M306 376v64M72 206h64M72 306h64M376 206h64M376 306h64"/>
+  </g>
+
+  <!-- Core: three shared nodes connected. -->
+  <g stroke="#4ade80" stroke-width="14" stroke-linecap="round">
+    <path d="M256 204L208 290M256 204L304 290M208 290H304"/>
+  </g>
+  <g fill="#4ade80">
+    <circle cx="256" cy="204" r="22"/>
+    <circle cx="208" cy="290" r="22"/>
+    <circle cx="304" cy="290" r="22"/>
+  </g>
+</svg>

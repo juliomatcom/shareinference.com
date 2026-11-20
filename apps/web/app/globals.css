@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --color-accent: #22c55e;
+}
+
+/* Dark only: native controls, scrollbars and form fields follow it. */
+:root {
+  color-scheme: dark;
+}
+
+/* The Playground fills the viewport (no page scroll, the chat list scrolls): the body gets the viewport height, the
+   page area becomes a flex column and the footer steps aside. Other pages are untouched. */
+body:has([data-fill-viewport]) {
+  height: 100vh;
+  height: 100svh;
+}
+body:has([data-fill-viewport]) > div.flex-1 {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+body:has([data-fill-viewport]) > footer {
+  display: none;
+}
+
+/* Hero circuit art: a lit dash runs along a trace toward the chip, blazing fast (2.5% of the cycle), then the trace rests until its next turn. */
+@keyframes circuit-pulse {
+  0% {
+    stroke-dashoffset: -100;
+  }
+  2.5%,
+  100% {
+    stroke-dashoffset: 10;
+  }
+}
+.circuit-pulse {
+  stroke-dasharray: 9 200;
+  stroke-dashoffset: 10;
+  animation: circuit-pulse var(--dur, 9s) linear var(--delay, 0s) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .circuit-pulse {
+    animation: none;
+    visibility: hidden;
+  }
+}
+
+/* Links and enabled buttons show the hand cursor (Tailwind's reset leaves buttons on the arrow). */
+a[href],
+button:not(:disabled),
+summary,
+select:not(:disabled),
+input[type="checkbox"]:not(:disabled),
+label:has(input[type="checkbox"]:not(:disabled)) {
+  cursor: pointer;
+}
