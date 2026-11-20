@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { card } from "../components/ui";
+import { pageMetadata } from "../lib/site";
 
-export const metadata: Metadata = { title: "How It Works" };
+export const metadata: Metadata = pageMetadata({
+  title: "How Browser-Based LLM Inference Works",
+  description:
+    "How ShareInference turns browser tabs into an open-source LLM inference network: WebGPU providers, an OpenAI-compatible API, fair credits and private routing.",
+  path: "/how-it-works",
+});
 
 const steps = [
   {

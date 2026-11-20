@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import { ModelsTable } from "../components/ModelsTable";
+import { pageMetadata } from "../lib/site";
 
-export const metadata: Metadata = { title: "Model Catalog" };
+export const metadata: Metadata = pageMetadata({
+  title: "Open-Weight LLM Model Catalog",
+  description:
+    "Open-weight LLMs you can call through the ShareInference OpenAI-compatible API, with live GPU worker counts and queue depth. Pass the model id in your request.",
+  path: "/models",
+});
 
 export default function ModelsPage() {
   return (

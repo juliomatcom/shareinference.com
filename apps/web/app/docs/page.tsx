@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { card } from "../components/ui";
+import { pageMetadata } from "../lib/site";
 import { allDocs } from "./lib";
 
-export const metadata: Metadata = { title: "Docs" };
+export const metadata: Metadata = pageMetadata({
+  title: "Documentation: API, GPU Sharing and FAQ",
+  description:
+    "Guides for the ShareInference OpenAI-compatible API, sharing your GPU with WebGPU, privacy and the FAQ.",
+  path: "/docs",
+});
 
 export default function DocsIndex() {
   const docs = allDocs();

@@ -22,6 +22,10 @@ export function Footer() {
             Repository
           </a>
           {" · "}
+          <Link href="/docs/faq" className=" hover:text-white">
+            FAQ
+          </Link>
+          {" · "}
           <Link href="/docs/privacy" className=" hover:text-white">
             Privacy
           </Link>

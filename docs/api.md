@@ -12,7 +12,7 @@ Want to try it first? The **Playground** (signed in, no key needed) lets you cha
 
 ## Credits, in short
 
-A request costs `(prompt tokens × 1 + completion tokens × 5)` credits and the provider that served it earns the same amount. You earn credits by sharing your GPU on the **Share** page. Your balance may go below zero: you are then in the _fair lane_, served after everyone with credits, and only if your GitHub account is at least 30 days old. See the [economy](../wiki-llm/economy.md) page for the rules.
+A request costs `(prompt tokens × 1 + completion tokens × 5) × the model's price multiplier` credits (x1 for most models, x2 for `qwen3.5-9b`) and the provider that served it earns the same amount. You earn credits by sharing your GPU on the **Share** page. Your balance may go below zero: you are then in the _fair lane_, served after everyone with credits, and only if your GitHub account is at least 30 days old. See the [economy](../wiki-llm/economy.md) page for the rules, and the [FAQ](faq.md) for every limit in one table.
 
 ## List models
 
@@ -64,7 +64,7 @@ Python works the same way: `OpenAI(api_key=..., base_url="https://api.shareinfer
 
 ### What is accepted
 
-`model`, `messages` (roles `system`, `user`, `assistant`; text content only), `stream`, `stream_options.include_usage`, `temperature`, `top_p`, `max_tokens` (default 1024, at most 2048), `stop`, `presence_penalty`, `frequency_penalty`, `seed`, and `enable_thinking` (also read from `chat_template_kwargs.enable_thinking`). Any other field is rejected with a `400`. Requests are limited to 256 KiB, and the prompt plus `max_tokens` must fit the model's context window.
+`model`, `messages` (roles `system`, `user`, `assistant`; text content only), `stream`, `stream_options.include_usage`, `temperature`, `top_p`, `max_tokens` (default 4096, at most 8192; the prompt plus `max_tokens` must fit the model's context window), `stop`, `presence_penalty`, `frequency_penalty`, `seed`, and `enable_thinking` (also read from `chat_template_kwargs.enable_thinking`). Any other field is rejected with a `400`. Requests are limited to 256 KiB, and the prompt plus `max_tokens` must fit the model's context window.
 
 Models that "think" first put that reasoning in `reasoning_content` (on the message, or as stream deltas) and keep it out of `content`. Thinking tokens are billed as output.
 
@@ -80,7 +80,7 @@ Errors use the OpenAI shape: `{"error": {"message", "type", "code"}}`.
 | 404    | `model_not_found`              | Unknown model id                                                                                                |
 | 429    | `rate_limited`                 | Too many requests. Fair lane: 10 per minute, 500 per day, 1 at a time. With credits: 60 per minute, 4 at a time |
 | 502    | `provider_failed`              | The provider failed twice before answering (or failed mid-stream)                                               |
-| 503    | `network_busy`, `no_providers` | The queue is full or you waited 30 s; or no provider is online for the model                                    |
+| 503    | `network_busy`, `no_providers` | The queue is full or you waited 300 s; or no provider is online for the model                                   |
 
 If a provider fails after it has started answering, a stream ends with one `data: {"error": ...}` event and you are not charged. If you close the connection, the request is cancelled: before any output arrived you are not charged; after it, you pay for the tokens you received.
 

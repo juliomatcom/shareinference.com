@@ -1,10 +1,39 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { ApiEndpoint } from "./components/ApiEndpoint";
 import { Circuit } from "./components/Circuit";
 import { HideWhileSharing } from "./components/HideWhileSharing";
 import { HeroStats } from "./components/HeroStats";
+import { JsonLd } from "./components/JsonLd";
 import { ProvidersTable } from "./components/ProvidersTable";
+import { SignInFailed } from "./components/SignInFailed";
 import { card, primaryButton } from "./components/ui";
+import { DESCRIPTION, SITE_NAME, SITE_URL, absoluteUrl, pageMetadata } from "./lib/site";
+
+export const metadata: Metadata = pageMetadata({
+  absoluteTitle: `${SITE_NAME} | Community-Powered Open-Source LLM Inference`,
+  description:
+    "Share GPU time from a browser tab with WebGPU, earn credits, and spend them on an OpenAI-compatible API for open-weight LLMs. Free queue included.",
+  path: "/",
+});
+
+// Only facts the site states elsewhere: free to share (credits are earned, no money), WebGPU browser required,
+// AGPL-3.0 licence. No ratings, reviews or counts.
+const appSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: SITE_NAME,
+  url: absoluteUrl("/"),
+  description: DESCRIPTION,
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Any (WebGPU browser)",
+  browserRequirements: "Requires WebGPU (a recent desktop Chrome or Edge)",
+  license: "https://www.gnu.org/licenses/agpl-3.0.html",
+  isAccessibleForFree: true,
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  publisher: { "@id": `${SITE_URL}/#organization` },
+};
 
 function Check({ children }: { children: React.ReactNode }) {
   return (
@@ -17,17 +46,15 @@ function Check({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ signin?: string }> }) {
-  const { signin } = await searchParams;
+export default function Home() {
   return (
     <main className="relative">
+      <JsonLd data={appSchema} />
       <Circuit />
       <div className="mx-auto max-w-5xl space-y-8 px-4 py-10 sm:py-14">
-        {signin === "failed" && (
-          <p role="alert" className="rounded-md border border-red-500/50 bg-red-950/40 px-4 py-2 text-sm text-red-300">
-            Sign-in failed. Please try again.
-          </p>
-        )}
+        <Suspense>
+          <SignInFailed />
+        </Suspense>
         <HeroStats />
 
         <HideWhileSharing>

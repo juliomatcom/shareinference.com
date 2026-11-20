@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import { ProvidersTable } from "../components/ProvidersTable";
+import { pageMetadata } from "../lib/site";
 
-export const metadata: Metadata = { title: "Leaderboard" };
+export const metadata: Metadata = pageMetadata({
+  title: "GPU Provider Leaderboard",
+  description:
+    "The top community GPU providers on ShareInference, ranked by tokens served. See who is sharing WebGPU compute for open-source LLM inference right now.",
+  path: "/leaderboard",
+});
 
 export default function LeaderboardPage() {
   return (
