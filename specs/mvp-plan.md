@@ -188,7 +188,7 @@ Ordered by risk. Each item has the check that settles it.
 - **Q3 Credit unit & prices:** integer unit (e.g. 1 credit = 1,000 tokens, stored as integer milli-credits?), tier multipliers per model size, sign-up grant, burn % (spec says 5–10%).
 - **Q4 Billing trust in MVP:** bill from worker-reported usage (capped by `max_tokens` and server-side chunk count) and add a server tokenizer later — acceptable?
 - **Q5 Model catalog:** start with which 2–3 models? (proposal after S1: one ~3B, one ~7–8B).
-- **Q6 Repo name:** the GitHub repo and folder are `shareinferece.com` (missing "n"). Rename before going public widely? (`AGENTS.md` part resolved: replaced with a minimal project version.)
+- ~~Q6 Repo name~~ → GitHub repo renamed to `shareinference.com` (2026-11-20).
 
 ### 3a. Economy draft (under review — not decided)
 

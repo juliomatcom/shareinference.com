@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S1 browser worker spike</title>
+<style>
+:root{color-scheme:dark}
+body{background:#111;color:#ddd;font:14px/1.4 ui-monospace,monospace;max-width:860px;margin:1rem auto;padding:0 16px}
+button{background:#2a2a2a;color:#ddd;border:1px solid #555;padding:.4rem .8rem;margin-right:.5rem;cursor:pointer}
+button:disabled{opacity:.5}
+pre{background:#1a1a1a;padding:.6rem;white-space:pre-wrap;margin:.5rem 0}
+#log{height:260px;overflow:auto}
+.bad{color:#f66;font-weight:bold}
+</style></head><body>
+<h3>S1: WebLLM in a module worker + WebSocket</h3>
+<pre id="info">checking WebGPU...</pre>
+<p><button id="start" disabled>Start</button><button id="wake">Keep screen awake</button></p>
+<p>Progress: <span id="progress">-</span><br>Status: <span id="status">idle</span> | Jobs done: <span id="jobs">0</span></p>
+<pre id="log"></pre>
+<script>
+const $ = (id) => document.getElementById(id);
+let gpu = null, worker, jobs = 0;
+const log = (s) => { $('log').textContent += new Date().toISOString().slice(11, 23) + ' ' + s + '\n'; $('log').scrollTop = 1e9; };
+
+(async () => {
+  if (!navigator.gpu) { $('info').innerHTML = '<span class="bad">WebGPU is unavailable (need Chrome on localhost or HTTPS).</span>'; return; }
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) { $('info').innerHTML = '<span class="bad">navigator.gpu exists but no adapter was returned.</span>'; return; }
+  const i = adapter.info;
+  gpu = { vendor: i.vendor, architecture: i.architecture, device: i.device, description: i.description,
+    shaderF16: adapter.features.has('shader-f16'), maxBufferSize: adapter.limits.maxBufferSize,
+    maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+    deviceMemory: navigator.deviceMemory, hardwareConcurrency: navigator.hardwareConcurrency };
+  $('info').textContent = JSON.stringify(gpu, null, 2);
+  $('start').disabled = false;
+})().catch((e) => { $('info').innerHTML = '<span class="bad">' + e + '</span>'; });
+
+$('start').onclick = () => {
+  $('start').disabled = true;
+  $('status').textContent = 'loading';
+  worker = new Worker('./worker.js', { type: 'module' });
+  worker.onerror = (e) => log('WORKER ERROR ' + (e.message || 'failed to load worker'));
+  worker.onmessage = ({ data: m }) => {
+    if (m.type === 'progress') $('progress').textContent = Math.round(m.progress * 100) + '% ' + m.text;
+    else if (m.type === 'status') { $('status').textContent = m.state; log('ws ' + m.state); }
+    else if (m.type === 'job') { $('jobs').textContent = ++jobs; log('job ' + m.id + ' ' + m.finish_reason); }
+    else if (m.type === 'error') log('ERROR ' + m.message);
+  };
+  worker.postMessage({ type: 'start', model: 'Qwen3.5-4B-q4f16_1-MLC', wsUrl: `ws://${location.host}/ws`, gpu });
+  log('started');
+};
+
+document.addEventListener('visibilitychange', () => {
+  log('visibility ' + document.visibilityState);
+  worker?.postMessage({ type: 'visibility', state: document.visibilityState });
+});
+
+$('wake').onclick = async () => {
+  try {
+    const lock = await navigator.wakeLock.request('screen');
+    log('wake lock acquired');
+    lock.addEventListener('release', () => log('wake lock released'));
+  } catch (e) { log('wake lock failed: ' + e.message); }
+};
+</script></body></html>
