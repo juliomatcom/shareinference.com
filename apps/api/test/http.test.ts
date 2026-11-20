@@ -126,6 +126,7 @@ describe("deny by default", () => {
       "GET /public/leaderboard",
       "GET /public/models",
       "GET /public/stats",
+      "GET /robots.txt",
     ]);
   });
 

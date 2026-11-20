@@ -6,6 +6,14 @@
 # No `encode`: Next compresses its own responses, and compressing or buffering the api's text/event-stream would break
 # token streaming. X-Real-IP is overwritten with the TCP peer on both hosts (never a client value): the api trusts it
 # only with TRUST_PROXY=true and builds its per-IP rate limits on it.
+# Crawlers: robots.txt and the page `noindex` tags are advisory, so the signed-in pages and the proxied api are also
+# closed here to self-identified bots without a session cookie (and carry `X-Robots-Tag: noindex`). Link-preview bots (X, Slack, Discord,
+# LinkedIn...) keep working on the public pages. The api host refuses bots that send no credentials; a bot that lies
+# about its User-Agent is stopped by authentication and the api's per-IP limits.
+(botpattern) {
+	header_regexp ua User-Agent (?i)([a-z]bot\b|\bbot\b|bot/|crawl|spider|scrapy|scraper|slurp|gptbot|chatgpt|oai-searchbot|claudebot|claude-web|claude-user|claude-searchbot|anthropic-ai|perplexitybot|perplexity-user|bytespider|ccbot|ahrefs|semrush|mj12|diffbot|facebookexternalhit|embedly)
+}
+
 # www -> apex, permanently (needs a DNS A record for www.<domain>).
 www.{$DOMAIN} {
 	redir https://{$DOMAIN}{uri} permanent
@@ -17,6 +25,15 @@ www.{$DOMAIN} {
 		-Server
 	}
 
+	@gated path /dashboard* /settings* /playground* /share /share/* /signin* /api/*
+	header @gated X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex"
+	@gatedbots {
+		path /dashboard* /settings* /playground* /share /share/* /signin* /api/*
+		not header Cookie *
+		import botpattern
+	}
+	respond @gatedbots "Automated clients are not served here." 403
+
 	reverse_proxy web:3000 {
 		header_up X-Real-IP {remote_host}
 	}
@@ -25,8 +42,17 @@ www.{$DOMAIN} {
 {$API_DOMAIN} {
 	header {
 		Strict-Transport-Security "max-age=31536000"
+		X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex"
 		-Server
 	}
+
+	@apibots {
+		not path /robots.txt /healthz
+		not header Authorization *
+		not header Cookie *
+		import botpattern
+	}
+	respond @apibots "Automated clients without credentials are not served." 403
 
 	reverse_proxy api:4000 {
 		header_up X-Real-IP {remote_host}

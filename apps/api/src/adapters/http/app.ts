@@ -6,6 +6,7 @@ import { IP_LIMITS, createIpLimiter } from "../../core/ipLimiter.js";
 import type { GithubOAuth, Logger } from "../../core/ports.js";
 import { accountRoutes } from "./accountRoutes.js";
 import { authRoutes } from "./authRoutes.js";
+import { blockBots, robotsTag, robotsTxt } from "./botGuard.js";
 import { clientIp } from "./clientIp.js";
 import { cors } from "./cors.js";
 import { SESSION_COOKIE, cookieOf } from "./cookies.js";
@@ -19,6 +20,7 @@ import { workerRoutes } from "./workerRoutes.js";
 /** Routes reachable without credentials ("METHOD /path"). Everything else is denied. Mirrors wiki-llm/api.md. */
 export const PUBLIC_ROUTES = new Set([
   "GET /healthz",
+  "GET /robots.txt",
   "GET /auth/github",
   "GET /auth/github/callback",
   "GET /public/config",
@@ -60,6 +62,8 @@ export function createApp(opts: AppOptions): express.Express {
   const { log, core, webOrigin } = opts;
   const app = express();
   app.disable("x-powered-by");
+  app.use(robotsTag); // every response, errors and 404s included
+  app.get("/robots.txt", robotsTxt);
   // A JSON api: HSTS belongs to the TLS terminator (it would also pin plain-http local hosts), and the default CSP's
   // upgrade-insecure-requests would break plain-http use (localhost, a VM).
   app.use(
@@ -124,6 +128,7 @@ export function createApp(opts: AppOptions): express.Express {
     next();
   };
   app.use(cors(webOrigin));
+  app.use(blockBots); // after cors: its 403 carries CORS headers, and preflights are answered before it
   app.use(authenticate);
   app.use(express.json({ limit: "256kb" }));
 
