@@ -306,9 +306,11 @@ describe.skipIf(!testDatabaseUrl)("provider WebSocket (/v1/worker)", () => {
     await eventually(async () => (await online()) === 1);
     h.clock.advance(SILENCE_MS - 1);
     w.send({ type: "heartbeat" });
-    await new Promise((r) => setTimeout(r, 80));
+    // The server must process the heartbeat before the clock moves again: generous, because a loaded CI runner can
+    // take far longer than the sweep interval (20 ms) to deliver one websocket frame.
+    await new Promise((r) => setTimeout(r, 400));
     h.clock.advance(SILENCE_MS - 1);
-    await new Promise((r) => setTimeout(r, 80));
+    await new Promise((r) => setTimeout(r, 200));
     expect(await online()).toBe(1);
   });
 
