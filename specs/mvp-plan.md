@@ -141,6 +141,12 @@ flowchart LR
 | D28 | **Thinking tokens are output tokens** and are billed as such (Qwen3.5 thinks by default). | user (2026-11-20) |
 | D29 | **Database is swappable by one URL.** The api reads only `DATABASE_URL` (incl. `sslmode`); no host/port/user split vars. Local default: compose `db` service (Postgres 17, `db-data` volume) enabled through `COMPOSE_PROFILES=localdb` in `.env`; the api's `depends_on` on `db` is `required: false`. Prod (e.g. GCP Cloud SQL for PostgreSQL): drop the profile, point `DATABASE_URL` at the instance (TLS required; private IP or Cloud SQL Auth Proxy), migrations run the same way. Only plain Postgres features (no extensions Cloud SQL lacks); bounded pool size via `DB_POOL_MAX`. | user (2026-11-20) |
 | D30 | **GPU testing happens on the user's M5 Pro host** (no software-WebGPU in the VM): either the host browser connects as a provider to the stack, or the whole stack runs on the host. WebGPU needs a secure context, so the host browser must reach the web app via `localhost` (port forward from the VM) or HTTPS — never a plain-HTTP LAN IP. | user (2026-11-20) |
+| D31 | **Thinking output:** the api strips `<think>…</think>` from `content`; non-empty thinking is returned as `reasoning_content` (message and stream delta). Thinking tokens stay billed as output (D28). | user (2026-11-20) |
+| D32 | **Device label:** leaderboard shows the coarse detected GPU (`adapter.info.vendor`/`architecture`, e.g. "Apple GPU"), an optional provider-typed device label (Settings, validated like D15) and measured decode tokens/sec. | user (2026-11-20) |
+| D33 | **Economy MVP defaults** (user: "be pragmatic, don't wait"; each is one config value, revisit anytime): integer credits; input token = 1 credit, output token (incl. thinking) = 5 credits; consumer spend = provider earn in one transaction (no burn); per-model `price_multiplier` column defaulting to 1 (one model in MVP); sign-up grant `SIGNUP_GRANT_CREDITS` default 0; negative balances allowed (D20) and repaid naturally by earnings; no reduced free-lane rate; concentration cap deferred post-MVP. | user direction (2026-11-20) |
+| D34 | **Origins:** browser session calls go same-origin through Next.js rewrites (`/api/*` → api on the compose network), so the session cookie is first-party and no CORS is needed. Consumers (`/v1/*`) and the provider WebSocket (`/v1/worker`) talk to the api's public URL directly; the WS authenticates with a short-lived worker token sent in its first message (never in the URL). | Opus call, resolves Q2 (2026-11-20) |
+| D35 | **Wiki kept lean** (D23): 9 pages — index, conventions, architecture (incl. routing), api (incl. auth), worker-protocol, economy, data-model, web, setup. | Opus call (2026-11-20) |
+| D36 | **Worker warm-up:** after loading the model the worker runs one tiny generation before announcing `ready` (S1: first job after cold load had 1.9 s TTFT). | S1 |
 
 ---
 
@@ -150,15 +156,15 @@ Ordered by risk. Each item has the check that settles it.
 
 | #   | Assumption                                                                                                         | How we verify                                                                 | Status |
 | --- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ------ |
-| V1  | WebLLM runs inside a **dedicated Web Worker** and exposes OpenAI-style streaming `chat.completions`.                | Spike S1 (static page) + current WebLLM docs/version                          | docs ✔ (`WebWorkerMLCEngineHandler`); running the engine *directly* in the worker (needed so the WebSocket lives there) → S1 |
-| V2  | A **WebSocket opened inside the Worker** keeps receiving jobs and streaming tokens when the tab is in background.  | Spike S1: background the tab 10 min, keep sending jobs, measure latency       | open   |
-| V3  | Weights cache across reloads (WebLLM Cache API / IndexedDB); second load is seconds, not minutes.                  | Spike S1: reload, time to "ready"                                             | open   |
-| V4  | Realistic throughput for the 3B–8B 4-bit sweet spot on our test devices (Mac + Linux/PC).                          | Spike S1: tokens/sec log per device                                           | open   |
-| V5  | WebGPU availability on Linux Chrome (dev machine) — may need flags/Vulkan.                                         | Open `chrome://gpu`, run S1                                                   | open   |
-| V6  | `temperature: 0` output is **reproducible** on the same device, and how much it differs across GPUs. Decides whether canaries can be exact-match or must be fuzzy. | Spike S2: same prompt ×5 per device, diff outputs across 2+ devices | open |
-| V7  | WebLLM reports `usage` (prompt/completion tokens) we can bill from; or we need a server-side tokenizer to not trust the worker. | S1 + check tokenizer options for Node                              | docs ✔ usage on last stream chunk (`stream_options.include_usage`) and non-stream; exact fields → S1 |
-| V8  | Wake Lock only works while tab is visible — what "keep tab open" guidance we must give.                            | S1 + MDN                                                                      | open   |
-| V9  | Model memory needs vs `navigator.gpu` adapter limits (`maxBufferSize`, `maxStorageBufferBindingSize`) are enough to pick which models a device can host. | S1: log adapter limits per device next to which models load | open |
+| V1  | WebLLM runs inside a **dedicated Web Worker** and exposes OpenAI-style streaming `chat.completions`.                | Spike S1 (static page) + current WebLLM docs/version                          | ✔ S1 |
+| V2  | A **WebSocket opened inside the Worker** keeps receiving jobs and streaming tokens when the tab is in background.  | Spike S1: background the tab 10 min, keep sending jobs, measure latency       | ✔ S1 (~5 min hidden) |
+| V3  | Weights cache across reloads (WebLLM Cache API / IndexedDB); second load is seconds, not minutes.                  | Spike S1: reload, time to "ready"                                             | ✔ S1 |
+| V4  | Realistic throughput for the 3B–8B 4-bit sweet spot on our test devices (Mac + Linux/PC).                          | Spike S1: tokens/sec log per device                                           | ✔ S1 (M5 Pro) |
+| V5  | WebGPU availability on Linux Chrome (dev machine) — may need flags/Vulkan.                                         | Open `chrome://gpu`, run S1                                                   | n/a (dev in VM, GPU tests on M5 host, D30) |
+| V6  | `temperature: 0` output is **reproducible** on the same device, and how much it differs across GPUs. Decides whether canaries can be exact-match or must be fuzzy. | Spike S2: same prompt ×5 per device, diff outputs across 2+ devices | ✔ same device; cross-device open |
+| V7  | WebLLM reports `usage` (prompt/completion tokens) we can bill from; or we need a server-side tokenizer to not trust the worker. | S1 + check tokenizer options for Node                              | ✔ S1 |
+| V8  | Wake Lock only works while tab is visible — what "keep tab open" guidance we must give.                            | S1 + MDN                                                                      | deferred |
+| V9  | Model memory needs vs `navigator.gpu` adapter limits (`maxBufferSize`, `maxStorageBufferBindingSize`) are enough to pick which models a device can host. | S1: log adapter limits per device next to which models load | ✔ partly: limits readable, device model not exposed |
 
 **Finding (2026-11-20, `config.ts`):** WebLLM's prebuilt catalog tops out at ~9B for modern models (Qwen3.5-9B 6.4 GB, Qwen3-8B, Llama-3.1-8B, gemma-2-9b); ≥13B only Llama-2-13b and 70B q3. All prebuilt contexts are ≤4096 tokens. The original spec's 3B–14B range and longer contexts need our own MLC-compiled models → post-MVP. (`seed` confirmed in the request type, see below; whether it is honored → S1/S2.)
 
@@ -177,14 +183,28 @@ Ordered by risk. Each item has the check that settles it.
 
 **Left for S1 on real hardware (M5 Pro, 48 GB):** engine directly inside a Web Worker + WebSocket in that worker (V1, V2), background-tab behavior and heartbeat gaps (V2, V8), cold/warm load time (V3), tokens/sec (V4), `enable_thinking: false` and context override, determinism at temperature 0 / with `seed` (V6), adapter limits + `shader-f16` (V9).
 
+**S1 results — M5 Pro 48 GB, Chrome 157, Qwen3.5-4B-q4f16_1-MLC, WebLLM 0.2.89 (2026-11-20)**
+
+- ✔ V1/V2: `CreateMLCEngine` runs directly inside a module Web Worker; the WebSocket lives in the same worker and keeps serving while the tab is hidden: ~5 min hidden, heartbeat max gap 5005 ms (no throttling), background jobs answered in 144–451 ms. Longer hidden periods will be watched through real heartbeats from Phase 4 on.
+- ✔ V3: cold load 37.2 s (download + compile), warm load from cache **1.7 s**. The first job after a cold load is slow (TTFT 1.9 s, kernel warm-up); after a warm load it is not → the worker runs one tiny warm-up job before announcing `ready`.
+- ✔ V4: decode **~40 tok/s** at short context, ~26 tok/s at 2.5k context; prefill 300–530 tok/s (2,500-token prompt → 4.7 s to first token).
+- ✔ V6 (same device): `temperature: 0` output identical across 3 runs and across two sessions. Cross-device still unverified (only needed for canaries, post-MVP).
+- ✔ V7: `usage` has `prompt_tokens`, `completion_tokens`, `total_tokens` and `extra.{prefill_tokens_per_s, decode_tokens_per_s, time_to_first_token_s, …}`. With `resetChat()` per job, the resumed conversation billed its full history (67 prompt tokens) → D27 works as intended.
+- ⚠ Thinking: every response starts with a literal `<think>\n\n</think>\n\n`, even with `enable_thinking: false` (off: 4 completion tokens, on: 8 — on a trivial prompt the model emitted an empty think block itself). OpenAI clients must not see raw tags → see Q11.
+- ⚠ Device identity: the browser exposes only `vendor: "apple"`, `architecture: "metal-3"` (no chip model); the user agent is frozen ("Intel Mac OS X 10_15_7"); `navigator.deviceMemory` is capped (reported 32 on a 48 GB machine). The leaderboard's "MacStudio_M4Max / 48GB Unified" **cannot be auto-detected** → see Q12. `maxBufferSize` = 4 GiB.
+- Not tested (deferred, not blocking): Wake Lock, larger `context_window_size` (MVP stays at 4096), hidden periods well beyond 5 min.
+
 ---
 
 ## 3. Open questions (need a user call)
 
 - ~~Q1 Auth~~ → decided D8 (GitHub only).
 - ~~Q7~~ → D14. ~~Q8~~ → D15.
+- **Q11 Thinking output:** how `/v1/chat/completions` returns Qwen's `<think>…</think>`. Recommendation: the api strips the block from `content` and returns non-empty thinking as `reasoning_content` (the vLLM/DeepSeek convention most OpenAI clients understand); thinking tokens stay billed as output (D28).
+- **Q12 Device label on the leaderboard:** the browser can't tell an M4 Max from an M1. Recommendation: show the coarse detected GPU (e.g. "Apple GPU") plus an optional device label the provider types in Settings (like the display name, D15), and the measured tokens/sec, which is the honest signal.
 - **Q9/Q10 Economy:** draft in §3a, under review with the user.
-- **Q2 Origins:** web calls api cross-origin (agthy style, CORS + cookie) or Next rewrites `/api/*` → api for same-origin cookies?
+- ~~Q2~~ → D34. ~~Q11~~ → D31. ~~Q12~~ → D32. ~~Q9/Q10~~ → D33 defaults.
+- (old) **Q2 Origins:** web calls api cross-origin (agthy style, CORS + cookie) or Next rewrites `/api/*` → api for same-origin cookies?
 - **Q3 Credit unit & prices:** integer unit (e.g. 1 credit = 1,000 tokens, stored as integer milli-credits?), tier multipliers per model size, sign-up grant, burn % (spec says 5–10%).
 - **Q4 Billing trust in MVP:** bill from worker-reported usage (capped by `max_tokens` and server-side chunk count) and add a server tokenizer later — acceptable?
 - **Q5 Model catalog:** start with which 2–3 models? (proposal after S1: one ~3B, one ~7–8B).
@@ -265,7 +285,7 @@ Written for agents, from §1 decisions + Phase 0 findings; every page reviewed w
 | `wiki-llm/models.md`            | Supported model catalog, device requirements (from S1)                                                   |
 
 - Rewrite `AGENTS.md` for this project: point to `wiki-llm/index.md`, keep agent behavior rules only (Q6). Include the delegation rule: non-architecture work on Sonnet 5.5 subagents; every permanent code change ends with a contrarian Sonnet 5.5 review whose findings are fixed.
-- **Check:** user has reviewed and approved every page; no open question blocks Phase 2–5 contracts.
+- **Check:** pages written (lean set, D35); user reviews them asynchronously and corrections land as wiki edits. **Done 2026-11-20.**
 
 ### Phase 2 — Skeleton & compose
 
@@ -331,6 +351,8 @@ Written for agents, from §1 decisions + Phase 0 findings; every page reviewed w
 - 2026-11-20 — Auth decided: GitHub login only (D8); all services gated to authenticated users (D9).
 - 2026-11-20 — Single root `.env` for secrets (D10); open-source security + docs + easy-setup baseline (D11, §4a).
 - 2026-11-20 — Initial commit prep: project `AGENTS.md` (replaces copied file), README, standard `.gitignore`, third-party skill licenses.
+- 2026-11-20 — Q11 → D31, Q12 → D32; economy MVP defaults D33; origins D34; lean wiki D35; warm-up D36. Build starts.
+- 2026-11-20 — S1 run on M5 Pro: worker+WS in worker, background, cache, throughput, determinism, usage all verified; think-tag output (Q11) and device identity (Q12) found.
 - 2026-11-20 — GPU testing on user's M5 host (D30); `modern-web-guidance` + `git-commit` skills installed by user.
 - 2026-11-20 — `Initial-v1.md` deleted; vision folded into this plan's header.
 - 2026-11-20 — `resetChat()` before every job, no KV reuse (D27).
