@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1
 # Web: Next.js standalone server. Build context: repo root.
-FROM node:24-bookworm-slim AS build
+# The build runs on the build machine's own architecture: Next's native compiler segfaults under qemu when an ARM
+# machine builds for linux/amd64. The output is plain JS (no next/image, so no native sharp), so the runtime stage
+# below, which is the target platform, can use it as is.
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS build
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
