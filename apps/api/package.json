@@ -1,0 +1,34 @@
+{
+  "name": "@shareinference/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "dev": "tsx watch --env-file=../../.env src/main.ts",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "db:make": "pnpm build && node dist/migrate.js make"
+  },
+  "dependencies": {
+    "@shareinference/logger": "workspace:*",
+    "express": "5.3.0",
+    "helmet": "8.3.0",
+    "knex": "3.3.0",
+    "pg": "8.23.1",
+    "ws": "8.22.2",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
+    "@types/supertest": "7.2.1",
+    "@types/ws": "8.18.2",
+    "openai": "7.56.0",
+    "supertest": "7.3.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  }
+}
