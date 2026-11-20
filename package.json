@@ -21,9 +21,12 @@
     "credit": "docker compose exec -T api node dist/users.js credit",
     "ledger": "docker compose exec -T api node dist/users.js ledger",
     "ledger:check": "docker compose exec -T api node dist/users.js ledger:check",
-    "fake-worker": "docker compose exec -T api node dist/devFakeWorker.js"
+    "fake-worker": "docker compose exec -T api node dist/devFakeWorker.js",
+    "deploy": "node --env-file-if-exists=.env scripts/deploy.mjs",
+    "test:scripts": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {
+    "chalk": "6.0.1",
     "prettier": "3.9.10"
   }
 }

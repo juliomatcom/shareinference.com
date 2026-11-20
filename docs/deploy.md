@@ -13,7 +13,7 @@ internet -> Caddy :80/:443 (automatic HTTPS, HSTS)
 
 - Images are built on your own machine and copied to the VM over ssh. Nothing is built on the VM (it has 2 GB of RAM).
 - The production settings are an override file, `compose.prod.yaml`, used together with `compose.yaml`.
-- Secrets live in one hand-made `.env` on the VM. The deploy script never reads or writes it.
+- Secrets live in one hand-made `.env` on the VM. Without a local `.env.prod` the deploy script never touches it; with one, it uploads it as that `.env` together with the images (not on a rollback).
 - Per-IP rate limits run in the api and rely on Caddy telling it the visitor's address (`TRUST_PROXY=true`, below).
 
 ## 1. Prepare the VM (once)
@@ -65,7 +65,7 @@ apt-get update && apt-get upgrade
 # reboot only if /var/run/reboot-required exists (a new kernel), then check the stack is back up
 ```
 
-**Key-only ssh.** Make sure your public key is in `/root/.ssh/authorized_keys` (mode 600) _before_ disabling passwords. Keep your current session open, and check that a new terminal can log in as `root` with the key, then:
+**Key-only ssh.** Make sure your public key is in `/root/.ssh/authorized_keys` (mode 600, replacing the one there) _before_ disabling passwords. Keep your current session open, and check that a new terminal can log in as `root` with the key, then:
 
 ```sh
 tee /etc/ssh/sshd_config.d/10-hardening.conf >/dev/null <<'EOF2'
@@ -102,7 +102,7 @@ Keep the Client ID and generate a client secret. This is a separate app from you
 
 ## 4. Production `.env`
 
-Create `/opt/shareinference/.env` on the VM by hand and lock it down (`chmod 600 .env`). Never commit it.
+Keep the settings in a local, gitignored `.env.prod`: every deploy uploads it as `/opt/shareinference/.env` (mode 600, replacing the one there). Or create that file on the VM by hand and lock it down (`chmod 600 .env`); then keep no local `.env.prod`. Never commit it.
 
 | Variable                                   | Production value                                                                                                                       |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -128,8 +128,8 @@ On your own machine, from a clean, committed checkout (the image tag is the git 
 
 ```sh
 export DEPLOY_HOST=root@<vm-address>
-ops/deploy.sh --dry-run     # builds the images and prints what it would do on the VM
-ops/deploy.sh
+pnpm run deploy -- --dry-run     # builds the images and prints what it would do on the VM
+pnpm run deploy
 ```
 
 The script builds the images for `linux/amd64` (set `DEPLOY_PLATFORM` if your VM differs; building amd64 on an ARM Mac uses qemu emulation and is slow, so build on an amd64 machine or in CI when you can), copies them over ssh, copies the compose files and `ops/` to `/opt/shareinference`, starts the stack, reloads Caddy (so a changed `ops/caddy/Caddyfile` applies) and polls `https://shareinference.com/api/healthz` and `https://api.shareinference.com/healthz` for up to 90 seconds. The first start also fetches Postgres and Caddy images and the certificate, so it takes longer.
@@ -219,12 +219,12 @@ Suspending a user blocks the account everywhere and disconnects their devices wi
 
 **Logs**: `si logs -f api` (JSON lines; no prompts or replies are ever logged). Docker keeps 5 files of 50 MB per service.
 
-**Update**: commit, then run `ops/deploy.sh` again. The api restarts (about 20 seconds at most); connected providers reconnect by themselves and in-flight requests of that moment fail.
+**Update**: commit, then run `pnpm run deploy` again. The api restarts (about 20 seconds at most); connected providers reconnect by themselves and in-flight requests of that moment fail.
 
 **Roll back**: redeploy a previous tag that is still on the VM. Giving `IMAGE_TAG` means "already on the VM": nothing is built or uploaded. The previous tag is printed at the end of every deploy and kept in `.deploy.env.prev`; `docker images 'shareinference-*'` lists the others. A deploy that fails prints the exact rollback command.
 
 ```sh
-IMAGE_TAG=<previous-tag> ops/deploy.sh
+IMAGE_TAG=<previous-tag> pnpm run deploy
 ```
 
 (If a release applied a database migration, rolling back the code does not undo it; restore a dump if the old code cannot run on the new schema.)
