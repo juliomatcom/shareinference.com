@@ -300,6 +300,13 @@ describe.skipIf(!testDatabaseUrl)("provider WebSocket (/v1/worker)", () => {
     expect(await online()).toBe(0);
   });
 
+  it("answers every heartbeat with a pong", async () => {
+    await start();
+    const w = await readyWorker();
+    w.send({ type: "heartbeat" });
+    expect((await w.next("pong")).type).toBe("pong");
+  });
+
   it("a heartbeating worker survives the sweep", async () => {
     await start({ sweepEveryMs: 20 });
     const w = await readyWorker();

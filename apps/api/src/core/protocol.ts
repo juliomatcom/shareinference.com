@@ -99,6 +99,8 @@ export const jobParams = z
 
 export const outboundFrame = z.discriminatedUnion("type", [
   z.object({ type: z.literal("welcome"), workerId: z.string() }).strict(),
+  /** The answer to every `heartbeat`: lets the worker tell a live socket from a half-open one. */
+  z.object({ type: z.literal("pong") }).strict(),
   z
     .object({
       type: z.literal("job"),

@@ -232,6 +232,25 @@ export function SharingProvider({ children }: { children: ReactNode }) {
     };
   }, [active]);
 
+  // Tell the worker when the machine may just have come back (tab visible again, page resumed, network up): it checks
+  // the connection at once instead of waiting for timers that do not run while the PC is idle or asleep.
+  useEffect(() => {
+    if (!active) return;
+    const wake = () => {
+      if (document.visibilityState === "visible") worker.current?.postMessage({ type: "wake" });
+    };
+    document.addEventListener("visibilitychange", wake);
+    document.addEventListener("resume", wake);
+    window.addEventListener("pageshow", wake);
+    window.addEventListener("online", wake);
+    return () => {
+      document.removeEventListener("visibilitychange", wake);
+      document.removeEventListener("resume", wake);
+      window.removeEventListener("pageshow", wake);
+      window.removeEventListener("online", wake);
+    };
+  }, [active]);
+
   // The provider sits in the root layout, so this runs only when the whole app goes away (tab closed).
   useEffect(() => () => worker.current?.terminate(), []);
 

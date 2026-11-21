@@ -8,6 +8,20 @@ const BACKOFF_MIN_MS = 1_000;
 const BACKOFF_MAX_MS = 30_000;
 // A connection must stay up this long before the backoff starts over (a flapping link keeps backing off).
 const STABLE_MS = 30_000;
+// The api drops a worker silent for 15 s and answers every heartbeat with `pong`: hearing nothing for this long means
+// the socket is dead (machine slept, tab frozen, network changed) even when the browser has not noticed.
+const DEAD_MS = 15_000;
+// After a wake-up hint the socket gets this long to answer a heartbeat before it is replaced.
+const WAKE_CHECK_MS = 4_000;
+// Consecutive failed jobs (engine exceptions) after which the engine is reloaded: a lost GPU device does not heal.
+const MAX_ENGINE_FAILURES = 3;
+// The page's token request gets this long before the worker gives up on it and retries (a fetch can hang when the
+// machine slept mid-request).
+const TOKEN_WAIT_MS = 15_000;
+// An engine exception counts as a failing engine only when it looks like a lost or broken GPU; a bad prompt (e.g. over
+// the context window) must not make a provider unload its model.
+const DEVICE_ERROR = /device|gpu|lost|destroyed|out of memory|invalid state/i;
+const PROMPT_ERROR = /context window|prompt tokens|too long|exceed/i;
 // The api closed us for a reason that retrying cannot fix. Anything else, including 4413 (backlog) and 4408
 // (timeout), is retried with backoff.
 const FATAL_CLOSE = {
@@ -28,6 +42,14 @@ let loadMs = 0;
 let loadedWindow; // context window this engine was loaded with (announced in `ready`)
 let cfg = null; // { model, contextWindow, apiUrl, deviceKey, gpu }
 let current = null; // { id } while a job runs
+let lastHeard = 0; // performance.now() of the last frame from the api (pong included)
+let wakeTimer = null;
+let tokenPending = false; // a `need-token` is out and its answer has not arrived
+let tokenTimer = null;
+let pongSeen = false; // this socket's api answers heartbeats (an api from before `pong` never does)
+let engineFailures = 0;
+let recovering = false;
+let loaded = false; // the engine is built and warm: the worker may connect
 let currentDone = Promise.resolve();
 
 const post = (message) => postMessage(message);
@@ -42,10 +64,18 @@ onmessage = ({ data }) => {
       start(data).catch((e) => fail(e));
       break;
     case "token":
+      // A token that arrives after its wait ran out belongs to an attempt that was already replaced.
+      if (!tokenPending) break;
+      settleToken();
       openSocket(data.token);
       break;
     case "token-failed":
+      if (!tokenPending) break;
+      settleToken();
       scheduleReconnect();
+      break;
+    case "wake":
+      wake();
       break;
     case "stop":
       stop().catch(() => {});
@@ -59,6 +89,12 @@ function fail(error) {
 
 async function start(message) {
   cfg = message;
+  await loadEngine();
+  if (!stopped) requestToken();
+}
+
+async function loadEngine() {
+  loaded = false;
   status("loading");
   const t0 = performance.now();
   // The catalog's context window (`CONTEXT_WINDOWS` in apps/api/src/core/models.ts, sent by the page) overrides the prebuilt record's 4096: WebLLM sizes the KV
@@ -81,11 +117,24 @@ async function start(message) {
   });
   await engine.resetChat();
   loadMs = Math.round(performance.now() - t0);
-  if (!stopped) requestToken();
+  loaded = true;
 }
 
 // The token is single use and lives 60 s, so it is fetched right before connecting, never before the model loads.
+function settleToken() {
+  tokenPending = false;
+  clearTimeout(tokenTimer);
+}
+
 function requestToken() {
+  if (stopped || recovering || tokenPending) return;
+  tokenPending = true;
+  clearTimeout(tokenTimer);
+  tokenTimer = setTimeout(() => {
+    if (!tokenPending) return;
+    tokenPending = false;
+    scheduleReconnect();
+  }, TOKEN_WAIT_MS);
   status(attempt === 0 ? "connecting" : "reconnecting");
   post({ type: "need-token" });
 }
@@ -95,30 +144,87 @@ function openSocket(token) {
   const base = cfg.apiUrl.replace(/^http/, "ws").replace(/\/$/, "");
   ws = new WebSocket(`${base}/v1/worker`);
   const socket = ws;
+  lastHeard = performance.now();
+  pongSeen = false;
   socket.onopen = () => send({ type: "auth", token, protocol: 1, deviceKey: cfg.deviceKey });
   socket.onmessage = (event) => {
+    lastHeard = performance.now();
     let frame;
     try {
       frame = JSON.parse(event.data);
     } catch {
       return;
     }
+    if (frame.type === "pong") pongSeen = true;
     onFrame(frame).catch((e) => fail(e));
   };
-  socket.onclose = (event) => {
-    if (socket !== ws) return;
-    clearInterval(heartbeat);
-    clearTimeout(stableTimer);
-    // Nobody is waiting for this job's output any more.
-    if (current) engine.interruptGenerate();
-    if (stopped) return;
-    if (FATAL_CLOSE[event.code]) {
-      stopped = true;
-      post({ type: "fatal", message: FATAL_CLOSE[event.code] });
-      return;
+  socket.onclose = (event) => socketGone(socket, event.code);
+}
+
+// The socket is over (closed by either side, or declared dead): stop its timers and reconnect unless that is pointless.
+function socketGone(socket, code) {
+  if (socket !== ws) return;
+  clearInterval(heartbeat);
+  clearTimeout(stableTimer);
+  clearTimeout(wakeTimer);
+  // Nobody is waiting for this job's output any more.
+  interrupt();
+  if (stopped) return;
+  if (FATAL_CLOSE[code]) {
+    stopped = true;
+    post({ type: "fatal", message: FATAL_CLOSE[code] });
+    return;
+  }
+  scheduleReconnect();
+}
+
+// A socket the browser still calls open but the api no longer answers: replace it now, without waiting for a close
+// event that may never come, and retry at once (the machine just woke up; there is nothing to back off from).
+function declareDead(socket) {
+  if (socket !== ws) return;
+  socket.onclose = null;
+  socket.onmessage = null;
+  try {
+    socket.close();
+  } catch {
+    // already closed
+  }
+  attempt = 0;
+  socketGone(socket, 0);
+}
+
+// The page saw the tab become visible again, the network return, or the page resume: check the connection now instead
+// of waiting for the next heartbeat tick (timers run late or not at all while the machine is idle or asleep).
+function wake() {
+  if (stopped || recovering || !cfg || tokenPending) return;
+  const socket = ws;
+  // A socket still connecting may be hanging on a network that just came back: replace it too.
+  if (socket && socket.readyState === WebSocket.CONNECTING) return declareDead(socket);
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    // Between connections: skip the rest of the backoff.
+    if (loaded) {
+      clearTimeout(reconnectTimer);
+      attempt = 0;
+      requestToken();
     }
-    scheduleReconnect();
-  };
+    return;
+  }
+  // Without `pong` (older api) silence proves nothing; the api's own 15 s sweep still drops a dead worker.
+  if (!pongSeen) return;
+  if (performance.now() - lastHeard > DEAD_MS) return declareDead(socket);
+  const asked = performance.now();
+  send({ type: "heartbeat" });
+  clearTimeout(wakeTimer);
+  wakeTimer = setTimeout(() => {
+    if (lastHeard < asked && pongSeen) declareDead(socket);
+  }, WAKE_CHECK_MS);
+}
+self.addEventListener("online", wake);
+
+function beat(socket) {
+  if (socket !== ws) return;
+  if (pongSeen && performance.now() - lastHeard > DEAD_MS) return declareDead(socket);
+  send({ type: "heartbeat" });
 }
 
 function scheduleReconnect() {
@@ -146,7 +252,9 @@ async function onFrame(frame) {
       clearTimeout(stableTimer);
       stableTimer = setTimeout(() => (attempt = 0), STABLE_MS);
       clearInterval(heartbeat);
-      heartbeat = setInterval(() => send({ type: "heartbeat" }), HEARTBEAT_MS);
+      lastHeard = performance.now();
+      const socket = ws;
+      heartbeat = setInterval(() => beat(socket), HEARTBEAT_MS);
       status("ready");
       break;
     case "job":
@@ -154,7 +262,7 @@ async function onFrame(frame) {
       else currentDone = runJob(frame);
       break;
     case "cancel":
-      if (current && current.id === frame.id) engine.interruptGenerate();
+      if (current && current.id === frame.id) interrupt();
       break;
     case "stats":
       post({ type: "stats", stats: frame });
@@ -162,10 +270,17 @@ async function onFrame(frame) {
   }
 }
 
+// Stops the running generation; a job that ends because of this is not an engine failure.
+function interrupt() {
+  if (!current) return;
+  current.interrupted = true;
+  engine.interruptGenerate();
+}
+
 const count = (n) => (Number.isFinite(n) && n > 0 ? Math.round(n) : 0);
 
 async function runJob({ id, messages, params }) {
-  current = { id };
+  current = { id, interrupted: false };
   status("busy");
   try {
     // No KV reuse between consumers (D27): every job processes its full history.
@@ -182,6 +297,7 @@ async function runJob({ id, messages, params }) {
       if (choice?.finish_reason) finish = choice.finish_reason;
       if (chunk.usage) usage = chunk.usage;
     }
+    engineFailures = 0;
     send({
       type: "done",
       id,
@@ -193,20 +309,52 @@ async function runJob({ id, messages, params }) {
       },
     });
   } catch (e) {
-    send({ type: "error", id, code: "engine_error", message: String(e?.message ?? e).slice(0, 200) });
+    const text = String(e?.message ?? e);
+    if (!current.interrupted && DEVICE_ERROR.test(text) && !PROMPT_ERROR.test(text)) engineFailures++;
+    else engineFailures = 0;
+    send({ type: "error", id, code: "engine_error", message: text.slice(0, 200) });
   } finally {
     current = null;
-    if (ws && ws.readyState === WebSocket.OPEN) status("ready");
+    if (engineFailures >= MAX_ENGINE_FAILURES) void recover();
+    else if (ws && ws.readyState === WebSocket.OPEN) status("ready");
   }
+}
+
+// Repeated engine exceptions usually mean the WebGPU device was lost (driver reset, power event): leave the network,
+// rebuild the engine, then come back, instead of staying online and failing every job.
+async function recover() {
+  if (recovering || stopped) return;
+  recovering = true;
+  engineFailures = 0;
+  clearInterval(heartbeat);
+  clearTimeout(reconnectTimer);
+  clearTimeout(wakeTimer);
+  clearTimeout(stableTimer);
+  settleToken();
+  const old = ws;
+  ws = null;
+  old?.close(1000);
+  try {
+    await engine.unload().catch(() => {});
+    if (!stopped) await loadEngine();
+  } catch (e) {
+    recovering = false;
+    return fail(e);
+  }
+  recovering = false;
+  attempt = 0;
+  requestToken();
 }
 
 async function stop() {
   stopped = true;
   clearInterval(heartbeat);
+  clearTimeout(wakeTimer);
+  clearTimeout(tokenTimer);
   clearTimeout(reconnectTimer);
   clearTimeout(stableTimer);
   if (ws) ws.close(1000);
-  if (current) engine.interruptGenerate();
+  interrupt();
   await currentDone;
   if (engine) await engine.unload();
   status("stopped");

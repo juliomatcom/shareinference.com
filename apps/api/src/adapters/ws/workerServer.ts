@@ -177,7 +177,10 @@ export function attachWorkerServer(opts: WorkerServerOptions): { close(): void }
             core.registry.unregister(workerId!);
             core.dispatcher.onWorkerGone(workerId!);
             drop(ws, CLOSE.suspended);
+            return;
           }
+          // Only the device's current socket is answered; a replaced or dropped one stays silent.
+          if (sockets.get(workerId!) === ws) send({ type: "pong" });
           return;
         }
         // Frames for an unknown or finished job id are ignored by the dispatcher (worker-protocol.md).
