@@ -1,6 +1,6 @@
 # Deploying to a server
 
-This is the runbook for putting ShareInference on one public Linux VM (Debian 13, 1 vCPU, 2 GB RAM) at `https://shareinference.com`. For a local or private install see [setup](setup.md). The technical facts (variables, compose files, scripts) are in [`wiki-llm/setup.md`](../wiki-llm/setup.md).
+This is the runbook for putting ShareInference on one public Linux VM (Debian 13, 1 vCPU, 1 GB RAM) at `https://shareinference.com`. For a local or private install see [setup](setup.md). The technical facts (variables, compose files, scripts) are in [`wiki-llm/setup.md`](../wiki-llm/setup.md).
 
 ## How it fits together
 
@@ -11,7 +11,7 @@ internet -> Caddy :80/:443 (automatic HTTPS, HSTS)
             db (Postgres 17), api and web publish no host ports
 ```
 
-- Images are built on your own machine and copied to the VM over ssh. Nothing is built on the VM (it has 2 GB of RAM).
+- Images are built on your own machine and copied to the VM over ssh. Nothing is built on the VM (it has 1 GB of RAM).
 - The production settings are an override file, `compose.prod.yaml`, used together with `compose.yaml`.
 - Secrets live in one hand-made `.env` on the VM. Without a local `.env.prod` the deploy script never touches it; with one, it uploads it as that `.env` together with the images (not on a rollback).
 - Per-IP rate limits run in the api and rely on Caddy telling it the visitor's address (`TRUST_PROXY=true`, below).
@@ -47,7 +47,10 @@ apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 fallocate -l 1G /swapfile && chmod 600 /swapfile
 mkswap /swapfile && swapon /swapfile
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
+echo 'vm.swappiness=10' > /etc/sysctl.d/99-swappiness.conf && sysctl --system
 ```
+
+The low `vm.swappiness` keeps swap a last resort instead of a regular working area.
 
 **Firewall.** Only ssh and the web ports are open. (Ports published by Docker bypass ufw, which is why the production override publishes nothing but Caddy's 80/443.)
 

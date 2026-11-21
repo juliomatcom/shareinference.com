@@ -1,11 +1,11 @@
 # Production override: docker compose -f compose.yaml -f compose.prod.yaml --env-file .env --env-file .deploy.env up -d
 # (scripts/deploy.mjs does it). Prebuilt images by tag (nothing is built on the VM, D41), Caddy in front on 80/443, no host
-# ports for db, api and web. Memory budget (D41): api 256m, web 320m (heap 192), db 320m, caddy 64m.
+# ports for db, api and web. Memory budget (D41, 1 GB VM): api 256m, web 256m (heap 160), db 256m, caddy 64m.
 services:
   db:
     ports: !reset []
-    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=20"]
-    mem_limit: 320m
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=20"]
+    mem_limit: 256m
 
   api:
     image: shareinference-api:${IMAGE_TAG:?set IMAGE_TAG (scripts/deploy.mjs writes it to .deploy.env)}
@@ -20,8 +20,8 @@ services:
     build: !reset null
     ports: !reset []
     environment:
-      NODE_OPTIONS: --max-old-space-size=192
-    mem_limit: 320m
+      NODE_OPTIONS: --max-old-space-size=160
+    mem_limit: 256m
 
   caddy:
     image: caddy:2.11.9
