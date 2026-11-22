@@ -5,7 +5,8 @@ import { useEffect } from "react";
 import { useRequireMe } from "../components/MeProvider";
 import { STATUS_LABEL, useSharing } from "../components/SharingProvider";
 import { card, gateMessage } from "../components/ui";
-import { MODEL_VRAM_MB, formatNumber, pickDefaultModel } from "../lib/api";
+import { MODEL_VRAM_MB, formatNumber, pickDefaultModel, type PublicModel } from "../lib/api";
+import { usePolled } from "../lib/usePolled";
 import { ModelScores } from "../components/ModelScores";
 import { ProviderIcon } from "../components/ProviderIcon";
 import { modelLabel, providerForModel } from "../lib/providers";
@@ -35,6 +36,12 @@ export default function Share() {
     start,
     stop,
   } = useSharing();
+
+  // The provider loads the catalog once; the "online now" counts must follow the network (a worker that just became ready
+  // shows up here), so they are polled like the other public pages and override the provider's first answer.
+  const polledModels = usePolled<{ models: PublicModel[] }>("/public/models");
+  const onlineNow = (m: PublicModel) =>
+    polledModels.data?.models.find((x) => x.id === m.id)?.workersOnline ?? m.workersOnline;
 
   useEffect(() => {
     if (ready) prepare();
@@ -321,10 +328,10 @@ export default function Share() {
                           <span className="flex items-center gap-1.5 text-neutral-400">
                             <span
                               aria-hidden="true"
-                              className={`size-1.5 rounded-full ${m.workersOnline > 0 ? "bg-accent" : "bg-neutral-600"}`}
+                              className={`size-1.5 rounded-full ${onlineNow(m) > 0 ? "bg-accent" : "bg-neutral-600"}`}
                             />
-                            {active && selected ? "Serving now · " : ""}
-                            {m.workersOnline} online now
+                            {active && selected ? `${live ? "Serving now" : STATUS_LABEL[run]} · ` : ""}
+                            {onlineNow(m)} online now
                           </span>
                           <span
                             aria-hidden="true"
