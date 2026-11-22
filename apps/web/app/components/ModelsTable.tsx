@@ -1,7 +1,9 @@
 "use client";
 
 import { formatNumber, type PublicModel } from "../lib/api";
+import { modelLabel, providerForModel } from "../lib/providers";
 import { usePolled } from "../lib/usePolled";
+import { ProviderIcon } from "./ProviderIcon";
 import { card } from "./ui";
 
 /** Model catalog with live worker and queue counts; polls every 10 s. */
@@ -31,7 +33,14 @@ export function ModelsTable() {
             {data?.models.map((m) => (
               <tr key={m.id} className="border-b border-neutral-800/60 last:border-0">
                 <td className="px-3 py-2.5">
-                  <code className="font-mono text-neutral-100">{m.id}</code>
+                  <div className="flex items-center gap-3">
+                    <ProviderIcon provider={providerForModel(m.id)?.id} size={32} />
+                    {/* The raw id (what the API's `model` field takes) shows on hover and is read out by screen readers. */}
+                    <span className="font-medium text-neutral-100" title={m.id}>
+                      {modelLabel(m.id).name}
+                      <code className="sr-only"> ({m.id})</code>
+                    </span>
+                  </div>
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{formatNumber(m.contextWindow)} tokens</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">

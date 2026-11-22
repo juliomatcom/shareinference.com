@@ -6,6 +6,8 @@ import { useRequireMe } from "../components/MeProvider";
 import { gateMessage, input, primaryButton } from "../components/ui";
 import { creditsFor, formatNumber, pickDefaultModel, type PublicModel } from "../lib/api";
 import { ModelScores } from "../components/ModelScores";
+import { ProviderIcon } from "../components/ProviderIcon";
+import { modelLabel, providerForModel } from "../lib/providers";
 import {
   ChatError,
   MAX_MESSAGES,
@@ -248,18 +250,21 @@ export default function Playground() {
             <label htmlFor="model" className="mb-1 block text-xs text-neutral-400">
               Model
             </label>
-            <select
-              id="model"
-              value={model?.id ?? ""}
-              onChange={(e) => setSelected(e.target.value)}
-              className={`${input} w-auto`}
-            >
-              {online.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.id}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2" title={model?.id}>
+              <ProviderIcon provider={model ? providerForModel(model.id)?.id : undefined} size={38} />
+              <select
+                id="model"
+                value={model?.id ?? ""}
+                onChange={(e) => setSelected(e.target.value)}
+                className={`${input} w-auto`}
+              >
+                {online.map((m) => (
+                  <option key={m.id} value={m.id} title={m.id}>
+                    {modelLabel(m.id).name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
         {!(model && alwaysThinks(model.id)) && (

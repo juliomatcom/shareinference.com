@@ -264,7 +264,9 @@ export default function Share() {
                         <span className="flex items-start gap-3">
                           <ProviderIcon provider={provider?.id} />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate font-semibold text-neutral-100">{label.name}</span>
+                            <span className="block truncate font-semibold text-neutral-100" title={m.id}>
+                              {label.name}
+                            </span>
                             <span className="block text-xs text-neutral-400">
                               {provider ? `${provider.name} · ` : ""}
                               {label.size}
