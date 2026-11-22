@@ -10,6 +10,7 @@ import {
   MAX_MESSAGES,
   estimateTokens,
   friendlyError,
+  alwaysThinks,
   maxTokensFor,
   streamChat,
   tooLongText,
@@ -129,7 +130,7 @@ export default function Playground() {
     };
     try {
       const result = await streamChat(
-        { model: model.id, messages: history, enableThinking: thinking },
+        { model: model.id, messages: history, enableThinking: thinking && !alwaysThinks(model.id) },
         controller.signal,
         (d) => {
           const now = performance.now();
@@ -260,22 +261,24 @@ export default function Playground() {
             </select>
           </div>
         )}
-        <label className="flex items-center gap-2 pb-2 text-sm text-neutral-300" title={THINKING_HELP}>
-          <input
-            type="checkbox"
-            checked={thinking}
-            onChange={(e) => setThinking(e.target.checked)}
-            className="size-4 accent-accent"
-          />
-          Thinking
-          <span
-            aria-hidden="true"
-            className="inline-flex size-4 cursor-help items-center justify-center rounded-full border border-neutral-600 text-[10px] text-neutral-400"
-          >
-            ?
-          </span>
-          <span className="sr-only">{THINKING_HELP}</span>
-        </label>
+        {!(model && alwaysThinks(model.id)) && (
+          <label className="flex items-center gap-2 pb-2 text-sm text-neutral-300" title={THINKING_HELP}>
+            <input
+              type="checkbox"
+              checked={thinking}
+              onChange={(e) => setThinking(e.target.checked)}
+              className="size-4 accent-accent"
+            />
+            Thinking
+            <span
+              aria-hidden="true"
+              className="inline-flex size-4 cursor-help items-center justify-center rounded-full border border-neutral-600 text-[10px] text-neutral-400"
+            >
+              ?
+            </span>
+            <span className="sr-only">{THINKING_HELP}</span>
+          </label>
+        )}
         <button type="button" onClick={newChat} disabled={messages.length === 0} className={btn}>
           New chat
         </button>

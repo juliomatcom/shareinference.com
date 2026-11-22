@@ -20,6 +20,10 @@ const MAX_TOKENS = 4096;
 // Inkling decodes at about 17 tok/s: 4096 tokens would need ~241 s plus prefill, close to the 300 s Playground job timeout
 // (a timeout moves no credits, D43), so its reply is capped lower. A Map: model ids come from the api.
 const MAX_TOKENS_BY_MODEL = new Map([["inkling-2-mini", 2048]]);
+// Models whose chat template cannot switch reasoning off (the model card says so): the Playground hides its Thinking
+// switch for them. They are sent `enable_thinking: false`, which the engine maps to the shortest reasoning effort.
+const ALWAYS_THINKS = new Set(["inkling-2-mini"]);
+export const alwaysThinks = (modelId: string): boolean => ALWAYS_THINKS.has(modelId);
 export const maxTokensFor = (modelId: string): number => MAX_TOKENS_BY_MODEL.get(modelId) ?? MAX_TOKENS;
 
 export class ChatError extends Error {
