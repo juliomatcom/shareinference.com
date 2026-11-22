@@ -424,7 +424,11 @@ describe.skipIf(!testDatabaseUrl)("end to end: openai SDK -> api -> fake provide
       expect(api).toHaveLength(2);
       // Headers carry nothing about the provider either.
       const headerRes = await play({ model: "qwen3.5-4b", messages });
-      const headers = [...headerRes.headers].map(([k, v]) => `${k}: ${v}`).join("\n");
+      // The etag is a hash of the body: random-looking text that can contain any short word by chance.
+      const headers = [...headerRes.headers]
+        .filter(([k]) => k !== "etag")
+        .map(([k, v]) => `${k}: ${v}`)
+        .join("\n");
       await headerRes.text();
       for (const secret of secrets) expect(headers.toLowerCase(), secret).not.toContain(String(secret).toLowerCase());
       for (const body of bodies) {
