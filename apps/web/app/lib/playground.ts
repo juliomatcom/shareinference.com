@@ -15,8 +15,16 @@ export interface StreamResult {
   finishReason: string | null;
 }
 
-/** Tokens reserved for every reply: sent as `max_tokens` (the api default) and counted in the context meter. */
-export const MAX_TOKENS = 4096;
+/** Tokens reserved for a reply: sent as `max_tokens` (the api default) and counted in the context meter. */
+const MAX_TOKENS = 4096;
+// Inkling decodes at about 17 tok/s: 4096 tokens would need ~241 s plus prefill, close to the 300 s Playground job timeout
+// (a timeout moves no credits, D43), so its reply is capped lower. A Map: model ids come from the api.
+const MAX_TOKENS_BY_MODEL = new Map([["inkling-2-mini", 2048]]);
+// Models whose chat template cannot switch reasoning off (the model card says so): the Playground hides its Thinking
+// switch for them. They are sent `enable_thinking: false`, which the engine maps to the shortest reasoning effort.
+const ALWAYS_THINKS = new Set(["inkling-2-mini"]);
+export const alwaysThinks = (modelId: string): boolean => ALWAYS_THINKS.has(modelId);
+export const maxTokensFor = (modelId: string): number => MAX_TOKENS_BY_MODEL.get(modelId) ?? MAX_TOKENS;
 
 export class ChatError extends Error {
   constructor(
@@ -51,7 +59,7 @@ export async function streamChat(
         messages: req.messages,
         stream: true,
         stream_options: { include_usage: true },
-        max_tokens: MAX_TOKENS,
+        max_tokens: maxTokensFor(req.model),
         enable_thinking: req.enableThinking,
       }),
     });
@@ -164,7 +172,7 @@ export function friendlyError(error: ChatError, ctx: { contextWindow: number; fr
       return plain(error.message || "No provider is serving this model right now. Try again later.");
     case "account_too_new":
       return plain(
-        "Your GitHub account is too new for the free lane. Earn credits by sharing your GPU, or buy credits.",
+        "Your GitHub account is too new for the fair queue. Earn credits by sharing your GPU, or try again once your account is 30 days old.",
       );
     case "provider_failed":
       return plain("The provider failed while answering. Try again.");

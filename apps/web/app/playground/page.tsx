@@ -5,12 +5,16 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { useRequireMe } from "../components/MeProvider";
 import { gateMessage, input, primaryButton } from "../components/ui";
 import { creditsFor, formatNumber, pickDefaultModel, type PublicModel } from "../lib/api";
+import { ModelScores } from "../components/ModelScores";
+import { ProviderIcon } from "../components/ProviderIcon";
+import { modelLabel, providerForModel } from "../lib/providers";
 import {
   ChatError,
   MAX_MESSAGES,
-  MAX_TOKENS,
   estimateTokens,
   friendlyError,
+  alwaysThinks,
+  maxTokensFor,
   streamChat,
   tooLongText,
   type ChatMessage,
@@ -48,7 +52,7 @@ const WARN_AT = 0.8;
 const MAX_DRAFT_CHARS = 40_000;
 /** What the Thinking switch does; shown as the tooltip on the switch and on a reply's "Thinking" disclosure. */
 const THINKING_HELP =
-  "Lets the model reason step by step before it answers. The reasoning is shown in a collapsible Thinking section above the reply. Answers can be better on hard questions but take longer, and the reasoning tokens are billed like reply tokens.";
+  "Lets the model reason step by step before it answers. The reasoning is shown in a collapsible Thinking section above the reply. Answers can be better on hard questions but take longer, and the reasoning tokens count like reply tokens.";
 
 const btn =
   "rounded-md border border-neutral-700 px-3 py-2 text-sm hover:border-neutral-500 focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50";
@@ -91,7 +95,8 @@ export default function Playground() {
   const text = draft.trim();
   const next: ChatMessage[] = text ? [...sendable, { role: "user", content: text }] : sendable;
   const contextWindow = model?.contextWindow ?? 0;
-  const used = estimateTokens(next) + MAX_TOKENS;
+  const reserved = model ? maxTokensFor(model.id) : 0; // the reply budget this model is sent with
+  const used = estimateTokens(next) + reserved;
   const tooLong = model !== undefined && (used > contextWindow || next.length > MAX_MESSAGES);
   const fresh = sendable.length === 0;
 
@@ -128,7 +133,7 @@ export default function Playground() {
     };
     try {
       const result = await streamChat(
-        { model: model.id, messages: history, enableThinking: thinking },
+        { model: model.id, messages: history, enableThinking: thinking && !alwaysThinks(model.id) },
         controller.signal,
         (d) => {
           const now = performance.now();
@@ -161,7 +166,7 @@ export default function Playground() {
       if (!alive()) return;
       if (controller.signal.aborted) {
         if (chunks === 0) {
-          takeBack({ text: "Stopped before any output. Nothing was charged.", newChat: false });
+          takeBack({ text: "Stopped before any output. No credits were used.", newChat: false });
         } else {
           // The api bills what was received once the provider confirms; this is only our estimate of it.
           const ended = performance.now();
@@ -245,40 +250,46 @@ export default function Playground() {
             <label htmlFor="model" className="mb-1 block text-xs text-neutral-400">
               Model
             </label>
-            <select
-              id="model"
-              value={model?.id ?? ""}
-              onChange={(e) => setSelected(e.target.value)}
-              className={`${input} w-auto`}
-            >
-              {online.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.id}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2" title={model?.id}>
+              <ProviderIcon provider={model ? providerForModel(model.id)?.id : undefined} size={38} />
+              <select
+                id="model"
+                value={model?.id ?? ""}
+                onChange={(e) => setSelected(e.target.value)}
+                className={`${input} w-auto`}
+              >
+                {online.map((m) => (
+                  <option key={m.id} value={m.id} title={m.id}>
+                    {modelLabel(m.id).name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
-        <label className="flex items-center gap-2 pb-2 text-sm text-neutral-300" title={THINKING_HELP}>
-          <input
-            type="checkbox"
-            checked={thinking}
-            onChange={(e) => setThinking(e.target.checked)}
-            className="size-4 accent-accent"
-          />
-          Thinking
-          <span
-            aria-hidden="true"
-            className="inline-flex size-4 cursor-help items-center justify-center rounded-full border border-neutral-600 text-[10px] text-neutral-400"
-          >
-            ?
-          </span>
-          <span className="sr-only">{THINKING_HELP}</span>
-        </label>
+        {!(model && alwaysThinks(model.id)) && (
+          <label className="flex items-center gap-2 pb-2 text-sm text-neutral-300" title={THINKING_HELP}>
+            <input
+              type="checkbox"
+              checked={thinking}
+              onChange={(e) => setThinking(e.target.checked)}
+              className="size-4 accent-accent"
+            />
+            Thinking
+            <span
+              aria-hidden="true"
+              className="inline-flex size-4 cursor-help items-center justify-center rounded-full border border-neutral-600 text-[10px] text-neutral-400"
+            >
+              ?
+            </span>
+            <span className="sr-only">{THINKING_HELP}</span>
+          </label>
+        )}
         <button type="button" onClick={newChat} disabled={messages.length === 0} className={btn}>
           New chat
         </button>
       </div>
+      {model && <ModelScores modelId={model.id} className="-mt-1" />}
 
       {models.failed && models.data === null ? (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-neutral-800 bg-neutral-900/60 p-6 text-center">
@@ -344,7 +355,7 @@ export default function Playground() {
                 </div>
                 <span>
                   Context: ~{formatNumber(used)} of {formatNumber(contextWindow)} tokens (includes{" "}
-                  {formatNumber(MAX_TOKENS)} reserved for the reply)
+                  {formatNumber(reserved)} reserved for the reply)
                 </span>
               </div>
               {tooLong ? (
@@ -403,7 +414,7 @@ export default function Playground() {
               <Link href="/dashboard" className="">
                 dashboard
               </Link>
-              . A stopped reply is still charged for what was received.
+              . A stopped reply still uses credits for what was received.
             </li>
             <li>This chat lives only in this tab and is gone when you reload.</li>
             <li>
@@ -447,7 +458,9 @@ function Bubble({ m }: { m: Msg }) {
         )}
       </div>
       {m.state === "stopped" && (
-        <p className="text-xs text-neutral-400">Stopped. Partial reply, charged on the server for what was received.</p>
+        <p className="text-xs text-neutral-400">
+          Stopped. Partial reply, credits used on the server for what was received.
+        </p>
       )}
       {m.state === "error" && (
         <p role="alert" className="max-w-[90%] text-sm text-red-400">

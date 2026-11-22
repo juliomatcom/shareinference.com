@@ -1,7 +1,7 @@
-// Share GPU worker: owns the WebLLM engine and the provider WebSocket (wiki-llm/worker-protocol.md).
+// Share GPU worker: owns the wllama engine and the provider WebSocket (wiki-llm/worker-protocol.md).
 // Plain JS, no bundling: the page starts it with `new Worker("/share-worker.js", { type: "module" })`.
 // Prompts and completions pass through here only; nothing is stored or logged, and only status/usage reach the page.
-import * as webllm from "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.89/+esm";
+import { createEngine } from "/engine/wllama-3.13.0-b12613/engine.js";
 
 const HEARTBEAT_MS = 5_000;
 const BACKOFF_MIN_MS = 1_000;
@@ -18,10 +18,19 @@ const MAX_ENGINE_FAILURES = 3;
 // The page's token request gets this long before the worker gives up on it and retries (a fetch can hang when the
 // machine slept mid-request).
 const TOKEN_WAIT_MS = 15_000;
-// An engine exception counts as a failing engine only when it looks like a lost or broken GPU; a bad prompt (e.g. over
-// the context window) must not make a provider unload its model.
-const DEVICE_ERROR = /device|gpu|lost|destroyed|out of memory|invalid state/i;
-const PROMPT_ERROR = /context window|prompt tokens|too long|exceed/i;
+// An engine exception counts as a failing engine unless it is the consumer's fault: a prompt over the context window
+// must not make a provider unload its model. Everything else (device loss, wasm trap, "Model failed to start
+// inference", a failed allocation) is an engine failure, since the error text of a broken engine cannot be predicted.
+// Kept narrow on purpose: a bare /context/ would also match "failed to allocate context". The texts are llama.cpp's
+// (request over n_ctx, or the context filling up mid-generation).
+const PROMPT_ERROR =
+  /exceeds the available context size|context size has been exceeded|larger than the max context size|prompt (is )?too long/i;
+// How long Stop and an engine unload wait before giving up on a stuck engine.
+const INTERRUPT_WAIT_MS = 15_000;
+// A job that does not end this long after an abort is stuck (e.g. a hung engine after device loss): rebuild the engine.
+// The engine only sees an abort between 512-token batches, so on a slow GPU one batch can take well over 15 s; this
+// stays just under the api's 30 s cancel grace (`CANCEL_GRACE_MS`), after which the api gives up on the job anyway.
+const ABORT_WATCHDOG_MS = 25_000;
 // The api closed us for a reason that retrying cannot fix. Anything else, including 4413 (backlog) and 4408
 // (timeout), is retried with backoff.
 const FATAL_CLOSE = {
@@ -97,27 +106,30 @@ async function loadEngine() {
   loaded = false;
   status("loading");
   const t0 = performance.now();
-  // The catalog's context window (`CONTEXT_WINDOWS` in apps/api/src/core/models.ts, sent by the page) overrides the prebuilt record's 4096: WebLLM sizes the KV
-  // cache from it at load (wiki-llm/architecture.md).
-  const chatOpts =
-    Number.isInteger(cfg.contextWindow) && cfg.contextWindow > 0
-      ? { context_window_size: cfg.contextWindow }
-      : undefined;
-  loadedWindow = chatOpts?.context_window_size;
-  engine = await webllm.CreateMLCEngine(
-    cfg.model,
-    { initProgressCallback: (r) => post({ type: "progress", progress: r.progress, text: r.text }) },
-    chatOpts,
-  );
-  // One tiny generation so the first real job does not pay the kernel warm-up (D36).
-  await engine.chat.completions.create({
-    messages: [{ role: "user", content: "Hi" }],
-    max_tokens: 4,
-    temperature: 0,
+  // The catalog's context window (`CONTEXT_WINDOWS` in apps/api/src/core/models.ts, sent by the page) sizes the KV cache
+  // at load (wiki-llm/architecture.md).
+  const contextWindow = Number.isInteger(cfg.contextWindow) && cfg.contextWindow > 0 ? cfg.contextWindow : 4096;
+  engine = await createEngine({
+    ref: cfg.model,
+    contextWindow,
+    // The shader patch's identical-output check has only run on Apple GPUs; every other vendor gets the stock shader.
+    stockShaders: cfg.gpu?.vendor !== "apple",
+    onProgress: (progress, text) => post({ type: "progress", progress, text }),
   });
-  await engine.resetChat();
+  loadedWindow = engine.contextWindow;
   loadMs = Math.round(performance.now() - t0);
   loaded = true;
+  void removeLegacyCaches();
+}
+
+// WebLLM stored its model files in Cache Storage under `webllm/...`. They are dead weight now (several GB): best effort,
+// never blocks `ready`.
+async function removeLegacyCaches() {
+  try {
+    for (const name of await caches.keys()) if (name.startsWith("webllm/")) await caches.delete(name);
+  } catch {
+    // Cache Storage unavailable
+  }
 }
 
 // The token is single use and lives 60 s, so it is fetched right before connecting, never before the model loads.
@@ -274,49 +286,52 @@ async function onFrame(frame) {
 function interrupt() {
   if (!current) return;
   current.interrupted = true;
-  engine.interruptGenerate();
+  current.controller.abort();
+  // Without this a job that never settles keeps `current` set and every reconnect waits on it forever.
+  const job = current;
+  job.watchdog ??= setTimeout(() => {
+    if (current === job) void recover();
+  }, ABORT_WATCHDOG_MS);
 }
 
-const count = (n) => (Number.isFinite(n) && n > 0 ? Math.round(n) : 0);
+// Resolves when `promise` does, or after `ms`, whichever is first (never rejects).
+function within(promise, ms) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    promise.then(
+      () => (clearTimeout(timer), resolve()),
+      () => (clearTimeout(timer), resolve()),
+    );
+  });
+}
 
 async function runJob({ id, messages, params }) {
-  current = { id, interrupted: false };
+  const job = (current = { id, interrupted: false, controller: new AbortController(), watchdog: null });
   status("busy");
   try {
-    // No KV reuse between consumers (D27): every job processes its full history.
-    await engine.resetChat();
-    const { enable_thinking, ...rest } = params ?? {};
-    const request = { messages, stream: true, stream_options: { include_usage: true }, ...rest };
-    if (enable_thinking !== undefined) request.extra_body = { enable_thinking };
-    const stream = await engine.chat.completions.create(request);
-    let finish = null;
-    let usage = null;
-    for await (const chunk of stream) {
-      const choice = chunk.choices[0];
-      if (choice?.delta?.content) send({ type: "chunk", id, delta: choice.delta.content });
-      if (choice?.finish_reason) finish = choice.finish_reason;
-      if (chunk.usage) usage = chunk.usage;
-    }
-    engineFailures = 0;
-    send({
-      type: "done",
-      id,
-      finishReason: finish === "length" || finish === "abort" ? finish : "stop",
-      usage: {
-        promptTokens: count(usage?.prompt_tokens),
-        completionTokens: count(usage?.completion_tokens),
-        decodeTokensPerS: Math.max(0, Number(usage?.extra?.decode_tokens_per_s) || 0),
-      },
+    const result = await engine.complete({
+      messages,
+      params,
+      signal: job.controller.signal,
+      onDelta: (delta) => current === job && send({ type: "chunk", id, delta }),
     });
+    // recover() gave up on this job while it hung: its socket and engine are gone, so it has nothing to report.
+    if (current !== job) return;
+    // Only a job that really finished proves the engine works; a failed one never resets the count.
+    if (!job.interrupted) engineFailures = 0;
+    send({ type: "done", id, finishReason: result.finishReason, usage: result.usage });
   } catch (e) {
+    if (current !== job) return;
     const text = String(e?.message ?? e);
-    if (!current.interrupted && DEVICE_ERROR.test(text) && !PROMPT_ERROR.test(text)) engineFailures++;
-    else engineFailures = 0;
+    if (!job.interrupted && !PROMPT_ERROR.test(text)) engineFailures++;
     send({ type: "error", id, code: "engine_error", message: text.slice(0, 200) });
   } finally {
-    current = null;
-    if (engineFailures >= MAX_ENGINE_FAILURES) void recover();
-    else if (ws && ws.readyState === WebSocket.OPEN) status("ready");
+    clearTimeout(job.watchdog);
+    if (current === job) {
+      current = null;
+      if (engineFailures >= MAX_ENGINE_FAILURES) void recover();
+      else if (ws && ws.readyState === WebSocket.OPEN) status("ready");
+    }
   }
 }
 
@@ -334,8 +349,15 @@ async function recover() {
   const old = ws;
   ws = null;
   old?.close(1000);
+  // A job stuck in the old engine is abandoned (its late result is dropped, see runJob).
+  if (current) clearTimeout(current.watchdog);
+  current = null;
+  currentDone = Promise.resolve();
   try {
-    await engine.unload().catch(() => {});
+    // unload() ends wllama's worker for good: a new engine is built, this one is never reused. On a hung engine it may
+    // not return either, so it is not waited on forever.
+    await within(engine?.unload() ?? Promise.resolve(), INTERRUPT_WAIT_MS);
+    engine = null;
     if (!stopped) await loadEngine();
   } catch (e) {
     recovering = false;
@@ -355,7 +377,8 @@ async function stop() {
   clearTimeout(stableTimer);
   if (ws) ws.close(1000);
   interrupt();
-  await currentDone;
-  if (engine) await engine.unload();
+  await within(currentDone, INTERRUPT_WAIT_MS);
+  if (engine) await within(engine.unload(), INTERRUPT_WAIT_MS);
+  engine = null;
   status("stopped");
 }

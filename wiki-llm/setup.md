@@ -29,6 +29,8 @@ Dev with live reload: `pnpm dev` starts the `db` container, then runs the api (`
 
 Tests: `TEST_DATABASE_URL` (optional; DB tests skip without it).
 
+CI (`.github/workflows/ci.yml`) runs on our own self-hosted runner (`runs-on: self-hosted`, labels `self-hosted, linux, x64`, registered for this repository). The runner has no Docker daemon until `start-dockerd` runs, so the job starts the daemon, then Postgres 17 with `docker run` (a service container cannot be used) for `TEST_DATABASE_URL`, and removes it at the end. Secrets are scanned by the pinned gitleaks 8.24.3 release binary (sha256 checked) over the full history, not by `gitleaks-action`, which crashes on a self-hosted runner (it hardcodes the `/home/runner` workspace when uploading its report); bump the version and checksum together. The repository is public, so the job is skipped for pull requests from forks: they must never execute code on our machine.
+
 The api container receives only the variables it reads (explicit `environment:` in `compose.yaml`), never `POSTGRES_PASSWORD`. It listens on a fixed port 4000 inside the container. The web image takes the build arg `API_INTERNAL_URL` (default `http://localhost:4401`, for running web outside Docker; compose sets `http://api:4000`): Next resolves the `/api/*` rewrite at build time, so changing it needs a rebuild. The `/docs` pages are built from the repo's `docs/` at image build time (editing a doc needs a rebuild of `web`). The `db` port `127.0.0.1:5432` is published for development and tests only; `compose.prod.yaml` removes it.
 
 ## GitHub OAuth app
@@ -47,6 +49,30 @@ Sign-in is GitHub only. On GitHub: Settings -> Developer settings -> OAuth Apps 
 - Bundled: service `db` (Postgres 17) under profile `localdb`, data in named volume `db-data` — survives restarts and `docker compose down`; only `docker compose down -v` deletes it.
 - External (e.g. GCP Cloud SQL for PostgreSQL 17): remove `localdb` from `COMPOSE_PROFILES`, set `DATABASE_URL` (TLS required; private IP or Cloud SQL Auth Proxy).
 
+## Browser engine (`libs/wllama-webgpu`)
+
+What the engine is and how it loads: [web.md](web.md) "Share page". Commands, from the repo root:
+
+- `pnpm --filter @shareinference/wllama-webgpu sync`: checks `vendor/<engine id>/` against the sha256 and sources recorded in its `BUILD.md` (the copy is the recorded build, and the recorded wllama and llama.cpp commits, tag and emsdk version, plus the submodule gitlink when git is available, equal `refs.json`; this is integrity, not provenance: it does not prove the files were built from those sources) and copies the engine into `apps/web/public/engine/` (generated, git-ignored; `apps/web` `dev` and `build` run it, so the Docker build needs no extra step). Nothing needs the submodule or a toolchain: the built engine is committed.
+- `pnpm --filter @shareinference/wllama-webgpu test`: unit tests of the shader patch, the model-family profiles, the job streaming (fake wllama) and the BUILD.md source check (no browser).
+- `pnpm --filter @shareinference/wllama-webgpu check:browser`: the browser gate. Runs the synced engine in a Worker in system Chrome (needs a GPU, so run it on a Mac; run `sync` first) and drives it over the DevTools Protocol. Env: `CHECK_MODEL` (public id or full `gguf_ref`, default `qwen3.5-2b`), `CHECK_CASES` (comma list of A to K; case P, prefill tokens/s, is opt-in), `CHECK_CONTEXT` (default 16384), `CHECK_PREFILL_TOKENS` (case P prompt size, default 14000), `CHECK_STOCK=1` (first load without the shader patch, for diagnosis), `CHECK_CHROME` (browser binary), `CHECK_PROFILE_DIR` (reuse a profile so model downloads survive; never deleted). The first run of a model downloads its GGUF file.
+
+**Engine build (maintainers only; `pnpm install`, `pnpm dev`, tests, lint and Docker never need it).** wllama and llama.cpp are compiled to wasm from our fork, a git submodule at `libs/wllama-webgpu/wllama` (`juliomatcom/wllama`, branch `shareinference`: upstream tag plus a newer llama.cpp pin plus minimal glue patches, see its `SHAREINFERENCE.md`). `libs/wllama-webgpu/build/refs.json` pins every input (fork commit, llama.cpp tag and commit, emsdk version, Dawn `emdawnwebgpu` package with its sha256) and the engine id.
+
+- One-time: `git submodule update --init libs/wllama-webgpu/wllama` (shallow), and an emsdk **4.0.20** installed outside the repo: `git clone https://github.com/emscripten-core/emsdk ~/emsdk && cd ~/emsdk && ./emsdk install 4.0.20 && ./emsdk activate 4.0.20`. Other emscripten versions fail at link (Homebrew's 7.0.0 does). Also needs cmake, make, python3, unzip, node and npm.
+- `EMSDK=~/emsdk pnpm --filter @shareinference/wllama-webgpu build:engine` (about 75 s on 12 cores): checks the submodule is at `refs.json`'s commit, builds with `GGML_WEBGPU=ON GGML_WEBGPU_JSPI=ON`, packages one ES module, refuses output that contains a local path, and writes `vendor/<engine id>/wllama/index.js`, `wllama/wasm/wllama.wasm` and `BUILD.md` (refs, flags, sizes, sha256). The wasm embeds the fork's commit hash, so every fork commit changes it; a rebuild that ships needs a new engine id (the files are cached as immutable).
+
+**Upgrading the engine** (new llama.cpp or wllama):
+
+1. In the fork's `shareinference` branch: move the llama.cpp submodule, fix any glue drift, push. Upstream the patch when it helps others.
+2. Move the submodule pointer, then update `refs.json` (commits, tag, engine id) and the id in `apps/web/public/share-worker.js` and `libs/wllama-webgpu/scripts/check-page/worker.js`.
+3. Run `build:engine`, commit `vendor/`. Before shipping, a second maintainer step: rebuild from the pinned refs (clean checkout of the pinned submodule commit, same emsdk) and compare the `sha256` lines of the new `BUILD.md` with the committed ones; the committed binary is trusted only if they match.
+4. Run `check:browser` on `qwen3.5-2b` and `qwen3.5-9b`.
+5. If the shader patch reports `applied` 0 or `skipped` above 0, the shader text changed: update the patch, or remove it if upstream fixed this.
+6. Ship only if all cases pass.
+
+Enabling the shader patch for another GPU vendor requires that vendor to pass case C (identical output) first.
+
 ## CLI (root `pnpm` scripts)
 
 Commands run inside the running api container (`docker compose exec api node dist/…`) through the root scripts, so they use the container's `DATABASE_URL`. Only `db:make` runs locally (it needs no database).
@@ -55,7 +81,7 @@ Commands run inside the running api container (`docker compose exec api node dis
 - `pnpm users list` · `pnpm users suspend|unsuspend <login>` · `pnpm users throttle <login> <perMin> <perDay>` (stores `rate_limit_override`; replaces the per-minute and per-day limits, [api.md](api.md))
 - `pnpm credit <login> <amount> <reason>` (an `adjust` entry; negative debits) · `pnpm ledger <login>` · `pnpm ledger:check` (every balance equals the sum of its entries; exit 1 on mismatch)
 - `pnpm users dev-session <login>` — **dev/test tool only**. Creates the local test user `<login>` if missing (negative `github_id`, GitHub account created one year ago) and prints a session token on stdout (pnpm's own header goes to stderr). Use it as the `si_session` cookie to test signed-in flows without GitHub: `curl -b "si_session=$(pnpm users dev-session alice)" http://localhost:4400/api/me`. Anyone holding a token is signed in as that user, so never run it against a public server's database. It refuses real GitHub accounts (positive `github_id`) and matches the GitHub login only.
-- `pnpm fake-worker <login> [--seconds N] [--api URL] [--device KEY]` — **dev/test tool only** (`apps/api/src/devFakeWorker.ts`, runs in the api container). Gets a session for the test user `<login>` through the same code as `dev-session`, requests a worker token, connects to `/v1/worker` (Origin `WEB_ORIGIN`), announces `Qwen3.5-4B-q4f16_1-MLC` with a fake GPU, heartbeats every 5 s, and answers any `job` with canned chunks (starting with `<think>\n\n</think>\n\n`) and a `done` with plausible usage; it honours `cancel`. It stops on Ctrl-C or when stdin closes; with `--seconds N` it ignores stdin and runs N seconds (use this when backgrounding with no stdin). Example: `sleep infinity | pnpm fake-worker alice &`. Then `curl http://localhost:4400/api/public/models` shows `workersOnline: 1`. Never run it against a public server.
+- `pnpm fake-worker <login> [--seconds N] [--api URL] [--device KEY]` — **dev/test tool only** (`apps/api/src/devFakeWorker.ts`, runs in the api container). Gets a session for the test user `<login>` through the same code as `dev-session`, requests a worker token, connects to `/v1/worker` (Origin `WEB_ORIGIN`), announces the `qwen3.5-4b` `gguf_ref` with a fake GPU, heartbeats every 5 s, and answers any `job` with canned chunks (starting with `<think>\n\n</think>\n\n`) and a `done` with plausible usage; it honours `cancel`. It stops on Ctrl-C or when stdin closes; with `--seconds N` it ignores stdin and runs N seconds (use this when backgrounding with no stdin). Example: `sleep infinity | pnpm fake-worker alice &`. Then `curl http://localhost:4400/api/public/models` shows `workersOnline: 1`. Never run it against a public server.
 - CLI output for the operator (tables, balances, tokens, usage) is plain text on stdout; logs (state changes, failures) are JSON lines in the shape of [logging.md](logging.md).
 - `<login>` is a GitHub login or a display name, case-insensitive; an ambiguous match is an error.
 

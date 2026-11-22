@@ -5,7 +5,10 @@ import { nodeSecrets } from "../src/adapters/secrets.js";
 import { FakeClock } from "./helpers/harness.js";
 
 const GPU = { vendor: "apple", architecture: "metal-3", shaderF16: true, maxBufferSize: 1 };
-const MODEL = { id: "qwen3.5-4b", webllmId: "Qwen3.5-4B-q4f16_1-MLC" };
+const MODEL = {
+  id: "qwen3.5-4b",
+  ggufRef: "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf",
+};
 
 function setup(secrets: Secrets = nodeSecrets) {
   const clock = new FakeClock();
@@ -23,15 +26,15 @@ describe("worker registry", () => {
     const { registry } = setup();
     registry.register("w1", "u1", "device-one");
     expect(registry.get("w1")!.state).toBe("connected");
-    expect(registry.onlineCount(MODEL.webllmId)).toBe(0);
+    expect(registry.onlineCount(MODEL.ggufRef)).toBe(0);
     expect(registry.markBusy("w1", "j1")).toBe(false); // not ready yet
     expect(registry.markReady("w1", MODEL, GPU)).toBe(true);
     expect(registry.markReady("w1", MODEL, GPU)).toBe(false); // only once
-    expect(registry.onlineCount(MODEL.webllmId)).toBe(1);
+    expect(registry.onlineCount(MODEL.ggufRef)).toBe(1);
     expect(registry.markBusy("w1", "j1")).toBe(true);
     expect(registry.markBusy("w1", "j2")).toBe(false);
     expect(registry.get("w1")).toMatchObject({ state: "busy", jobId: "j1" });
-    expect(registry.onlineCount(MODEL.webllmId)).toBe(1); // busy still counts as online
+    expect(registry.onlineCount(MODEL.ggufRef)).toBe(1); // busy still counts as online
     expect(registry.markIdle("w1")).toBe(true);
     expect(registry.get("w1")).toMatchObject({ state: "ready", jobId: null });
   });
@@ -39,10 +42,10 @@ describe("worker registry", () => {
   it("onlineCount can leave out one user's own workers", () => {
     const { registry } = setup();
     readyWorker(registry, "mine", "u1");
-    expect(registry.onlineCount(MODEL.webllmId, "u1")).toBe(0);
+    expect(registry.onlineCount(MODEL.ggufRef, "u1")).toBe(0);
     readyWorker(registry, "theirs", "u2");
-    expect(registry.onlineCount(MODEL.webllmId, "u1")).toBe(1);
-    expect(registry.onlineCount(MODEL.webllmId)).toBe(2);
+    expect(registry.onlineCount(MODEL.ggufRef, "u1")).toBe(1);
+    expect(registry.onlineCount(MODEL.ggufRef)).toBe(2);
   });
 
   it("drops a worker silent for more than 15 s, keeps one that heartbeats", () => {
@@ -57,7 +60,7 @@ describe("worker registry", () => {
     expect(registry.sweep().map((w) => w.id)).toEqual(["silent"]);
     expect(registry.get("silent")).toBeUndefined();
     expect(registry.get("alive")).toBeDefined();
-    expect(registry.onlineCount(MODEL.webllmId)).toBe(1);
+    expect(registry.onlineCount(MODEL.ggufRef)).toBe(1);
   });
 
   it("asks to persist last_seen_at at most once a minute", () => {
@@ -101,13 +104,16 @@ describe("worker registry", () => {
       const { registry } = setup();
       readyWorker(registry, "mine1", "owner");
       readyWorker(registry, "mine2", "owner");
-      readyWorker(registry, "other-model", "u2", { id: "x", webllmId: "Other-MLC" });
+      readyWorker(registry, "other-model", "u2", {
+        id: "x",
+        ggufRef: "other/Other-GGUF@0000000000000000000000000000000000000000/other.gguf",
+      });
       readyWorker(registry, "busy", "u3");
       registry.markBusy("busy", "j");
       registry.register("loading", "u4", "device-loading");
-      for (let i = 0; i < 200; i++) expect(registry.pickRandomIdle(MODEL.webllmId, "owner")).toBeUndefined();
+      for (let i = 0; i < 200; i++) expect(registry.pickRandomIdle(MODEL.ggufRef, "owner")).toBeUndefined();
       readyWorker(registry, "theirs", "u5");
-      for (let i = 0; i < 200; i++) expect(registry.pickRandomIdle(MODEL.webllmId, "owner")!.id).toBe("theirs");
+      for (let i = 0; i < 200; i++) expect(registry.pickRandomIdle(MODEL.ggufRef, "owner")!.id).toBe("theirs");
     });
 
     it("skips workers whose owner was flagged suspended", () => {
@@ -116,9 +122,9 @@ describe("worker registry", () => {
       readyWorker(registry, "bad2", "badguy");
       readyWorker(registry, "good", "goodguy");
       registry.markSuspended("badguy");
-      for (let i = 0; i < 100; i++) expect(registry.pickRandomIdle(MODEL.webllmId, "owner")!.id).toBe("good");
+      for (let i = 0; i < 100; i++) expect(registry.pickRandomIdle(MODEL.ggufRef, "owner")!.id).toBe("good");
       registry.unregister("good");
-      expect(registry.pickRandomIdle(MODEL.webllmId, "owner")).toBeUndefined();
+      expect(registry.pickRandomIdle(MODEL.ggufRef, "owner")).toBeUndefined();
     });
 
     it("is random across every eligible worker", () => {
@@ -126,7 +132,7 @@ describe("worker registry", () => {
       for (const [i, u] of ["a", "b", "c", "d"].entries()) readyWorker(registry, `w${i}`, u);
       readyWorker(registry, "own", "owner");
       const seen = new Set<string>();
-      for (let i = 0; i < 400; i++) seen.add(registry.pickRandomIdle(MODEL.webllmId, "owner")!.id);
+      for (let i = 0; i < 400; i++) seen.add(registry.pickRandomIdle(MODEL.ggufRef, "owner")!.id);
       expect([...seen].sort()).toEqual(["w0", "w1", "w2", "w3"]);
     });
 
@@ -136,7 +142,7 @@ describe("worker registry", () => {
       readyWorker(registry, "w0", "a");
       readyWorker(registry, "w1", "b");
       readyWorker(registry, "w2", "c");
-      expect(registry.pickRandomIdle(MODEL.webllmId, "owner")!.id).toBe("w1");
+      expect(registry.pickRandomIdle(MODEL.ggufRef, "owner")!.id).toBe("w1");
     });
   });
 });
@@ -149,12 +155,12 @@ describe("worker registry: loaded context window", () => {
     registry.register("new", "u2", "device-new");
     expect(registry.markReady("new", MODEL, GPU, 16_384)).toBe(true);
 
-    expect(registry.onlineCount(MODEL.webllmId)).toBe(2);
-    expect(registry.onlineCount(MODEL.webllmId, undefined, 8_000)).toBe(1);
-    expect(registry.onlineCount(MODEL.webllmId, undefined, 20_000)).toBe(0);
+    expect(registry.onlineCount(MODEL.ggufRef)).toBe(2);
+    expect(registry.onlineCount(MODEL.ggufRef, undefined, 8_000)).toBe(1);
+    expect(registry.onlineCount(MODEL.ggufRef, undefined, 20_000)).toBe(0);
     for (let i = 0; i < 20; i++) {
-      expect(registry.pickRandomIdle(MODEL.webllmId, "consumer", undefined, 8_000)?.id).toBe("new");
+      expect(registry.pickRandomIdle(MODEL.ggufRef, "consumer", undefined, 8_000)?.id).toBe("new");
     }
-    expect(registry.pickRandomIdle(MODEL.webllmId, "consumer", undefined, 20_000)).toBeUndefined();
+    expect(registry.pickRandomIdle(MODEL.ggufRef, "consumer", undefined, 20_000)).toBeUndefined();
   });
 });

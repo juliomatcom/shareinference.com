@@ -11,18 +11,9 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: shareinference
-          POSTGRES_PASSWORD: ci
-          POSTGRES_DB: shareinference_test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U shareinference -d shareinference_test"
-          --health-interval 5s --health-timeout 5s --health-retries 10
+    runs-on: self-hosted
+    # The runner is our own machine and this repository is public: a fork's pull request must never run code on it.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       TEST_DATABASE_URL: postgres://shareinference:ci@127.0.0.1:5432/shareinference_test
     steps:
@@ -34,6 +25,19 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      # The runner has no Docker daemon until asked (service containers cannot be used, so Postgres is started by hand).
+      - run: start-dockerd
+      - name: Start Postgres
+        run: |
+          docker rm -f ci-postgres 2>/dev/null || true
+          docker run -d --name ci-postgres -p 127.0.0.1:5432:5432 \
+            -e POSTGRES_USER=shareinference -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=shareinference_test postgres:17
+          for i in $(seq 1 30); do
+            docker exec ci-postgres pg_isready -U shareinference -d shareinference_test && exit 0
+            sleep 2
+          done
+          docker logs ci-postgres
+          exit 1
       - run: pnpm install --frozen-lockfile
       # Shared libraries (libs/) compile to dist; lint, test and the api import that build.
       - run: pnpm build:libs
@@ -47,7 +51,15 @@ jobs:
       - run: docker compose build
         env:
           DATABASE_URL: postgres://user:pass@db:5432/db
-      # Free for personal repositories; an organization needs a GITLEAKS_LICENSE secret.
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The gitleaks action crashes on a self-hosted runner (it hardcodes the /home/runner workspace when uploading its
+      # report), so the pinned release binary scans the full history directly.
+      - name: Scan history for secrets (gitleaks)
+        run: |
+          V=8.24.3
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tgz" "https://github.com/gitleaks/gitleaks/releases/download/v${V}/gitleaks_${V}_linux_x64.tar.gz"
+          echo "9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" detect --redact -v --exit-code=2 --no-banner
+      - name: Stop Postgres
+        if: always()
+        run: docker rm -f ci-postgres || true

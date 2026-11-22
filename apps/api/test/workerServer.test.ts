@@ -18,7 +18,7 @@ import {
   type Harness,
 } from "./helpers/harness.js";
 
-const MODEL = "Qwen3.5-4B-q4f16_1-MLC";
+const MODEL = "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf";
 const GPU = { vendor: "apple", architecture: "metal-3", shaderF16: true, maxBufferSize: 4294967296 };
 
 describe.skipIf(!testDatabaseUrl)("provider WebSocket (/v1/worker)", () => {
@@ -132,19 +132,28 @@ describe.skipIf(!testDatabaseUrl)("provider WebSocket (/v1/worker)", () => {
       expect((await request(h.app).get("/public/config")).body).toEqual({ apiPublicUrl: "http://localhost:4000" });
       const res = await request(h.app).get("/public/models");
       expect(res.status).toBe(200);
-      const row = (id: string, webllmId: string, priceMultiplier = 1) => ({
+      const row = (id: string, ggufRef: string, priceMultiplier = 1, contextWindow = 16384) => ({
         id,
-        webllmId,
-        contextWindow: 16384,
+        ggufRef,
+        contextWindow,
         priceMultiplier,
         workersOnline: 0,
         queueDepth: 0,
       });
       expect(res.body.models).toEqual([
-        row("gemma-4-e2b", "gemma-4-E2B-it-q4f16_1-MLC"),
-        row("qwen3.5-2b", "Qwen3.5-2B-q4f16_1-MLC"),
+        row(
+          "gemma-4-e2b",
+          "unsloth/gemma-4-E2B-it-GGUF@0314792d7f1f7e229411f620751375812bb9faf2/gemma-4-E2B-it-Q4_K_M.gguf",
+        ),
+        row(
+          "inkling-2-mini",
+          "bartowski/thinkingmachines_Inkling-2-Mini-GGUF@76d57028717ed7c63f5e90de75234cae0bc9b360/thinkingmachines_Inkling-2-Mini-IQ3_XXS.gguf",
+          3,
+          8192,
+        ),
+        row("qwen3.5-2b", "unsloth/Qwen3.5-2B-GGUF@f6d5376be1edb4d416d56da11e5397a961aca8ae/Qwen3.5-2B-Q4_K_M.gguf"),
         row("qwen3.5-4b", MODEL),
-        row("qwen3.5-9b", "Qwen3.5-9B-q4f16_1-MLC", 2),
+        row("qwen3.5-9b", "unsloth/Qwen3.5-9B-GGUF@3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-Q4_K_M.gguf", 2),
       ]);
     });
   });
@@ -398,7 +407,7 @@ describe.skipIf(!testDatabaseUrl)("provider WebSocket (/v1/worker)", () => {
       await old.opened;
       old.send(auth(await newToken()));
       await old.next("welcome");
-      const restore = slow("models", "findEnabledByWebllmId", 300);
+      const restore = slow("models", "findEnabledByGgufRef", 300);
       old.send({ type: "ready", model: MODEL, gpu: GPU, loadMs: 1 });
       const fresh = connect();
       await fresh.opened;

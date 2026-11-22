@@ -1,7 +1,15 @@
 import { DEFAULT_MAX_TOKENS, jobParams, promptTokenEstimate, type ChatRequest } from "./chat.js";
 import type { Deps } from "./deps.js";
-import type { CancelResult, FailCode, JobHandle, JobResult } from "./dispatcher.js";
+import {
+  JOB_TIMEOUT_MS,
+  PLAYGROUND_JOB_TIMEOUT_MS,
+  type CancelResult,
+  type FailCode,
+  type JobHandle,
+  type JobResult,
+} from "./dispatcher.js";
 import { clampTps } from "./gpu.js";
+import { firstChunkTimeoutMs } from "./models.js";
 import { creditsFor } from "./pricing.js";
 import type { JobSource, Lane, User } from "./types.js";
 
@@ -43,7 +51,7 @@ const refuse = (status: ChatRefusal["status"], code: ChatRefusal["code"], messag
 /** Enabled models with at least one ready or busy worker (`GET /v1/models`). */
 export async function onlineModels(deps: Deps): Promise<{ id: string }[]> {
   const models = await deps.models.listEnabled();
-  return models.filter((m) => deps.registry.onlineCount(m.webllmId) > 0);
+  return models.filter((m) => deps.registry.onlineCount(m.ggufRef) > 0);
 }
 
 /** Room a worker must have for the reply when the request names no `max_tokens` (the rest of the default may be cut). */
@@ -79,9 +87,9 @@ export async function startChat(
   // The prompt must fit as is; a reply that outgrows a smaller window just ends there (finish `length`), so without an
   // explicit max_tokens a worker needs room for the prompt plus a minimum reply, not the whole default.
   const needed = promptEstimateTokens + (body.max_tokens ?? Math.min(maxTokens, MIN_REPLY_TOKENS));
-  if (deps.registry.onlineCount(model.webllmId, user.id, needed) === 0) {
-    const own = deps.registry.onlineCount(model.webllmId, undefined, needed) > 0;
-    const small = deps.registry.onlineCount(model.webllmId, user.id) > 0;
+  if (deps.registry.onlineCount(model.ggufRef, user.id, needed) === 0) {
+    const own = deps.registry.onlineCount(model.ggufRef, undefined, needed) > 0;
+    const small = deps.registry.onlineCount(model.ggufRef, user.id) > 0;
     return refuse(
       503,
       "no_providers",
@@ -96,7 +104,11 @@ export async function startChat(
   const balance = (await deps.ledger.balance(user.id)) ?? 0;
   const lane: Lane = balance > 0 ? "priority" : "fair";
   if (lane === "fair" && deps.clock.now().getTime() - user.githubCreatedAt.getTime() < MIN_ACCOUNT_AGE_MS) {
-    return refuse(403, "account_too_new", "Your GitHub account is too new to use the free lane; earn or buy credits");
+    return refuse(
+      403,
+      "account_too_new",
+      "Your GitHub account is too new to use the fair queue; earn credits by sharing your GPU, or try again once it is 30 days old",
+    );
   }
   const release = deps.limiter.acquire(user.id, lane, user.rateLimitOverride);
   if (!release) return refuse(429, "rate_limited", "Rate limit exceeded; slow down and retry later");
@@ -206,9 +218,14 @@ export async function startChat(
       balance,
       source,
       minContext: needed,
+      firstChunkTimeoutMs: firstChunkTimeoutMs(
+        model.id,
+        promptEstimateTokens,
+        source === "playground" ? PLAYGROUND_JOB_TIMEOUT_MS : JOB_TIMEOUT_MS,
+      ),
       model: {
         id: model.id,
-        webllmId: model.webllmId,
+        ggufRef: model.ggufRef,
         contextWindow: model.contextWindow,
         priceMultiplier: model.priceMultiplier,
       },

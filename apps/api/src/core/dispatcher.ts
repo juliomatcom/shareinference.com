@@ -12,13 +12,24 @@ export const FIRST_CHUNK_TIMEOUT_MS = 90_000;
 /** Total job time: 10 min for API requests, 5 min for the web Playground. */
 export const JOB_TIMEOUT_MS = 600_000;
 export const PLAYGROUND_JOB_TIMEOUT_MS = 300_000;
-/** After a cancel or timeout the worker must confirm with `done`/`error` within this time, or it is dropped. */
-export const CANCEL_GRACE_MS = 10_000;
+/**
+ * After a cancel or timeout the worker must confirm with `done`/`error` within this time, or it is dropped. A browser
+ * engine only sees an abort between prefill batches, and one 512-token batch can take longer than 10 s on a slow GPU,
+ * so a shorter grace would drop healthy slow workers.
+ */
+export const CANCEL_GRACE_MS = 30_000;
 /** A job runs at most twice: one requeue after a failure before the first chunk. */
 export const MAX_ATTEMPTS = 2;
 /** A worker sending more than max_tokens (+ slack) chunks, or more than this many characters per token, is cut off. */
 const CHUNK_SLACK = 8;
 const CHARS_PER_TOKEN_LIMIT = 64;
+/**
+ * Reported completion tokens may exceed the chunks received by a few: the worker's profile drops marker tokens (Gemma's
+ * `<turn|>`, Inkling's role markers) and merges tokens that arrive as one delta, so an honest job reports slightly more
+ * tokens than chunks. Without the slack those jobs would be underbilled and flood `usage_capped`. The slack stays small
+ * so inflated usage still cannot go far past what was delivered.
+ */
+const USAGE_CHUNK_SLACK = 8;
 
 type ChunkFrame = z.infer<typeof chunkFrame>;
 type DoneFrame = z.infer<typeof doneFrame>;
@@ -35,7 +46,7 @@ export interface WorkerLink {
 
 export interface DispatchModel {
   id: string;
-  webllmId: string;
+  ggufRef: string;
   contextWindow: number;
   priceMultiplier: number;
 }
@@ -53,6 +64,8 @@ export interface JobRequest {
   source?: JobSource;
   /** Smallest context window a worker needs for this job; omitted means prompt estimate + `max_tokens`. */
   minContext?: number;
+  /** Time to first chunk; omitted means `FIRST_CHUNK_TIMEOUT_MS` (the floor). */
+  firstChunkTimeoutMs?: number;
 }
 
 export type FailCode = "provider_failed" | "network_busy" | "no_providers";
@@ -94,7 +107,7 @@ export interface Dispatcher {
   /** Sends a frame to a worker (e.g. `stats` after settlement); false when it is gone. */
   send(workerId: string, frame: OutboundFrame): boolean;
   /** Jobs waiting for a worker of this model. */
-  queueDepth(webllmId: string): number;
+  queueDepth(ggufRef: string): number;
   /** A worker finished `ready`: queued jobs may now run. */
   onWorkerReady(workerId: string): void;
   onChunk(workerId: string, frame: ChunkFrame): void;
@@ -159,7 +172,7 @@ export function createDispatcher(deps: {
   const { registry, scheduler, clock, log } = deps;
   const now = () => clock.now().getTime();
   let link: WorkerLink = noLink;
-  /** Queued jobs by WebLLM model id. */
+  /** Queued jobs by model `ggufRef`. */
   const queues = new Map<string, Entry[]>();
   /** The job each busy worker holds (including cancelled ones awaiting confirmation). */
   const runs = new Map<string, Run>();
@@ -193,14 +206,14 @@ export function createDispatcher(deps: {
     return a.seq - b.seq;
   };
 
-  const queueOf = (webllmId: string): Entry[] => {
-    let q = queues.get(webllmId);
-    if (!q) queues.set(webllmId, (q = []));
+  const queueOf = (ggufRef: string): Entry[] => {
+    let q = queues.get(ggufRef);
+    if (!q) queues.set(ggufRef, (q = []));
     return q;
   };
 
   function removeQueued(e: Entry): void {
-    const q = queues.get(e.req.model.webllmId);
+    const q = queues.get(e.req.model.ggufRef);
     const at = q ? q.indexOf(e) : -1;
     if (q && at !== -1) q.splice(at, 1);
     e.cancelWait?.();
@@ -211,7 +224,7 @@ export function createDispatcher(deps: {
   function enqueue(e: Entry): void {
     e.state = "queued";
     e.queuedAt = now();
-    queueOf(e.req.model.webllmId).push(e);
+    queueOf(e.req.model.ggufRef).push(e);
     // The queue budget (MAX_QUEUE_WAIT_MS) is for the whole time a job spends queued, however many attempts it takes.
     e.cancelWait = scheduler.after(Math.max(0, MAX_QUEUE_WAIT_MS - e.waited), () => {
       if (e.state !== "queued") return;
@@ -221,8 +234,8 @@ export function createDispatcher(deps: {
     });
   }
 
-  function pump(webllmId: string): void {
-    pending.add(webllmId);
+  function pump(ggufRef: string): void {
+    pending.add(ggufRef);
     if (pumping) return;
     pumping = true;
     try {
@@ -237,15 +250,15 @@ export function createDispatcher(deps: {
   }
 
   /** Starts as many queued jobs as there are eligible idle workers, best-ranked job first. */
-  function drain(webllmId: string): void {
-    const q = queues.get(webllmId);
+  function drain(ggufRef: string): void {
+    const q = queues.get(ggufRef);
     if (!q) return;
     for (;;) {
       let started = false;
       for (const e of [...q].sort(order)) {
         // The consumer's own worker is never eligible, so a lower-ranked job may be served first.
         const need = e.req.minContext ?? promptEstimate(e.req.messages) + (e.req.params.max_tokens ?? 0);
-        const worker = registry.pickRandomIdle(webllmId, e.req.consumerId, e.avoid, need);
+        const worker = registry.pickRandomIdle(ggufRef, e.req.consumerId, e.avoid, need);
         if (!worker) continue;
         removeQueued(e);
         start(e, worker.id, worker.userId);
@@ -279,7 +292,9 @@ export function createDispatcher(deps: {
     };
     e.run = run;
     runs.set(workerId, run);
-    run.cancelFirst = scheduler.after(FIRST_CHUNK_TIMEOUT_MS, () => timedOut(run, "first_chunk_timeout"));
+    run.cancelFirst = scheduler.after(req.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS, () =>
+      timedOut(run, "first_chunk_timeout"),
+    );
     run.cancelTotal = scheduler.after(req.source === "playground" ? PLAYGROUND_JOB_TIMEOUT_MS : JOB_TIMEOUT_MS, () =>
       timedOut(run, "job_timeout"),
     );
@@ -347,7 +362,7 @@ export function createDispatcher(deps: {
       e.boosted = true;
       e.avoid = run.workerId;
       enqueue(e);
-      pump(e.req.model.webllmId);
+      pump(e.req.model.ggufRef);
       return;
     }
     e.state = "done";
@@ -368,8 +383,13 @@ export function createDispatcher(deps: {
 
   function cap(run: Run, reported: DoneFrame["usage"]): JobResult["usage"] {
     const { req } = run.entry;
-    const completionTokens = Math.min(reported.completionTokens, req.params.max_tokens ?? Infinity, run.chunks);
+    const completionTokens = Math.min(
+      reported.completionTokens,
+      req.params.max_tokens ?? Infinity,
+      run.chunks + USAGE_CHUNK_SLACK,
+    );
     const promptTokens = Math.min(reported.promptTokens, req.model.contextWindow, promptEstimate(req.messages));
+    // Logged only when the reported value was above its cap (the min never raises it), not for usage within the slack.
     if (completionTokens !== reported.completionTokens || promptTokens !== reported.promptTokens) {
       log.warn("usage_capped", {
         job_id: req.jobId,
@@ -409,15 +429,15 @@ export function createDispatcher(deps: {
           }
         },
       };
-      const webllmId = req.model.webllmId;
-      if (registry.onlineCount(webllmId) === 0) {
+      const ggufRef = req.model.ggufRef;
+      if (registry.onlineCount(ggufRef) === 0) {
         e.state = "done";
         call(() => sink.onFail("no_providers"));
         return handle;
       }
       enqueue(e);
-      pump(webllmId);
-      if (e.state === "queued" && queueOf(webllmId).length > MAX_QUEUED_PER_MODEL) {
+      pump(ggufRef);
+      if (e.state === "queued" && queueOf(ggufRef).length > MAX_QUEUED_PER_MODEL) {
         removeQueued(e);
         e.state = "done";
         call(() => sink.onFail("network_busy"));
@@ -425,11 +445,11 @@ export function createDispatcher(deps: {
       return handle;
     },
 
-    queueDepth: (webllmId) => queues.get(webllmId)?.length ?? 0,
+    queueDepth: (ggufRef) => queues.get(ggufRef)?.length ?? 0,
 
     onWorkerReady(workerId) {
       const model = registry.get(workerId)?.model;
-      if (model) pump(model.webllmId);
+      if (model) pump(model.ggufRef);
     },
 
     onChunk(workerId, frame) {
@@ -459,7 +479,7 @@ export function createDispatcher(deps: {
       const run = current(workerId, frame.id);
       if (!run) return;
       const e = run.entry;
-      const model = e.req.model.webllmId;
+      const model = e.req.model.ggufRef;
       const usage = cap(run, frame.usage);
       if (run.detached) {
         // Consumer cancelled: the confirmation settles what was delivered (resolveCancel inside release otherwise).
@@ -487,7 +507,7 @@ export function createDispatcher(deps: {
       release(run, true);
       log.info("worker job error", { job_id: frame.id, worker_id: workerId, code: frame.code });
       if (!detached) failRun(run);
-      pump(run.entry.req.model.webllmId);
+      pump(run.entry.req.model.ggufRef);
     },
 
     onWorkerGone(workerId) {

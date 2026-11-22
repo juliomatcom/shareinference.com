@@ -1,0 +1,1 @@
+{"name":"s2-wllama-webgpu","private":true,"type":"module","scripts":{"start":"node server.mjs"},"dependencies":{"@wllama/wllama":"3.13.0"}}

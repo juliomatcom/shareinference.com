@@ -47,10 +47,11 @@ export const authFrame = z
 export const readyFrame = z
   .object({
     type: z.literal("ready"),
-    model: text(128).min(1),
+    // A catalog `gguf_ref` (`owner/repo@<40 hex>/file.gguf`); the longest today is 132 characters, so 128 refused Inkling.
+    model: text(256).min(1),
     gpu: gpuSchema,
     loadMs: z.number().int().min(0).max(3_600_000),
-    /** Context window the worker loaded (tokens). Omitted by older tabs, which always ran WebLLM's 4096. */
+    /** Context window the worker loaded (tokens). Omitted by older tabs, which always ran 4096. */
     contextWindow: z.number().int().min(256).max(1_048_576).optional(),
   })
   .strict();

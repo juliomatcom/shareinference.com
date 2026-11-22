@@ -29,7 +29,7 @@ export async function authenticateWorker(
   return { ok: true, workerId, userId, replaced: registered.replaced };
 }
 
-/** `ready`: the model must be an enabled catalog row (by WebLLM id). Returns the close code on refusal. */
+/** `ready`: the model must be an enabled catalog row (by `ggufRef`). Returns the close code on refusal. */
 export async function workerReady(
   deps: Deps,
   workerId: string,
@@ -37,18 +37,18 @@ export async function workerReady(
   /** Still the device's current socket? A replaced one must not touch the new connection's entry. */
   isCurrent: () => boolean,
 ): Promise<{ ok: true } | { ok: false; close: number }> {
-  const model = await deps.models.findEnabledByWebllmId(frame.model);
+  const model = await deps.models.findEnabledByGgufRef(frame.model);
   if (!model) return { ok: false, close: CLOSE.unknownModel };
   // The device strings are shown publicly: store only the cleaned ones.
   const gpu = sanitizeGpu(frame.gpu);
   // Second `ready`, replaced or dropped meanwhile.
   if (
     !isCurrent() ||
-    !deps.registry.markReady(workerId, { id: model.id, webllmId: model.webllmId }, gpu, frame.contextWindow)
+    !deps.registry.markReady(workerId, { id: model.id, ggufRef: model.ggufRef }, gpu, frame.contextWindow)
   ) {
     return { ok: false, close: CLOSE.badFrame };
   }
-  await deps.workers.setReady(workerId, gpu, model.webllmId, deps.clock.now());
+  await deps.workers.setReady(workerId, gpu, model.ggufRef, deps.clock.now());
   return { ok: true };
 }
 
@@ -69,7 +69,7 @@ export async function workerHeartbeat(deps: Deps, workerId: string): Promise<"ok
 
 export interface PublicModel {
   id: string;
-  webllmId: string;
+  ggufRef: string;
   contextWindow: number;
   /** Credit multiplier (wiki-llm/economy.md); the Playground computes its per-reply credits from it. */
   priceMultiplier: number;
@@ -82,11 +82,11 @@ export async function publicModels(deps: Deps): Promise<PublicModel[]> {
   const models = await deps.models.listEnabled();
   return models.map((m) => ({
     id: m.id,
-    webllmId: m.webllmId,
+    ggufRef: m.ggufRef,
     contextWindow: m.contextWindow,
     priceMultiplier: m.priceMultiplier,
-    workersOnline: deps.registry.onlineCount(m.webllmId),
-    queueDepth: deps.dispatcher.queueDepth(m.webllmId),
+    workersOnline: deps.registry.onlineCount(m.ggufRef),
+    queueDepth: deps.dispatcher.queueDepth(m.ggufRef),
   }));
 }
 

@@ -3,3 +3,8 @@ pnpm-lock.yaml
 spikes/
 apps/web/.next/
 apps/web/next-env.d.ts
+apps/web/public/engine/
+# Engine build: the wllama submodule, its cache and the generated output (vendor is committed but not ours to format).
+libs/wllama-webgpu/wllama/
+libs/wllama-webgpu/.build-cache/
+libs/wllama-webgpu/vendor/

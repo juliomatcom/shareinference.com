@@ -19,7 +19,7 @@ export interface LiveWorker {
   state: WorkerState;
   connectedAt: Date;
   /** Set once `ready` is accepted. */
-  model: { id: string; webllmId: string } | null;
+  model: { id: string; ggufRef: string } | null;
   gpu: Gpu | null;
   /** Tokens of context the worker loaded (set at `ready`; 4096 for tabs that do not say). */
   contextWindow: number;
@@ -36,7 +36,7 @@ export interface Registry {
   /** Same worker id twice means the device reconnected: the old entry is replaced (`replaced: true`). */
   register(id: string, userId: string, deviceKey: string): { ok: true; replaced: boolean } | { ok: false };
   /** connected -> ready (idle); false in any other state. */
-  markReady(id: string, model: { id: string; webllmId: string }, gpu: Gpu, contextWindow?: number): boolean;
+  markReady(id: string, model: { id: string; ggufRef: string }, gpu: Gpu, contextWindow?: number): boolean;
   markBusy(id: string, jobId: string): boolean;
   markIdle(id: string): boolean;
   /** Records a sign of life; true when the caller should persist `last_seen_at` now. */
@@ -50,14 +50,14 @@ export interface Registry {
   byUser(userId: string): LiveWorker[];
   /** Workers that can serve some model (ready or busy). */
   readyCount(): number;
-  /** Workers that can serve this WebLLM model (ready or busy), without those of `excludeUserId` when given. */
-  onlineCount(webllmId: string, excludeUserId?: string, minContext?: number): number;
+  /** Workers that can serve this model (by `ggufRef`) (ready or busy), without those of `excludeUserId` when given. */
+  onlineCount(ggufRef: string, excludeUserId?: string, minContext?: number): number;
   /**
    * A random idle worker for the model, never one owned by `excludeUserId` (a consumer is not served by itself) nor
    * `excludeWorkerId`, and only one whose loaded window is at least `minContext` tokens.
    */
   pickRandomIdle(
-    webllmId: string,
+    ggufRef: string,
     excludeUserId: string,
     excludeWorkerId?: string,
     minContext?: number,
@@ -160,12 +160,12 @@ export function createRegistry(deps: {
       for (const w of workers.values()) if (w.state !== "connected") n++;
       return n;
     },
-    onlineCount(webllmId, excludeUserId, minContext = 0) {
+    onlineCount(ggufRef, excludeUserId, minContext = 0) {
       let n = 0;
       for (const w of workers.values()) {
         if (
           w.state !== "connected" &&
-          w.model?.webllmId === webllmId &&
+          w.model?.ggufRef === ggufRef &&
           w.userId !== excludeUserId &&
           w.contextWindow >= minContext
         )
@@ -173,12 +173,12 @@ export function createRegistry(deps: {
       }
       return n;
     },
-    pickRandomIdle(webllmId, excludeUserId, excludeWorkerId, minContext = 0) {
+    pickRandomIdle(ggufRef, excludeUserId, excludeWorkerId, minContext = 0) {
       const eligible = [...workers.values()].filter(
         (w) =>
           w.state === "ready" &&
           !w.suspended &&
-          w.model?.webllmId === webllmId &&
+          w.model?.ggufRef === ggufRef &&
           w.userId !== excludeUserId &&
           w.id !== excludeWorkerId &&
           w.contextWindow >= minContext,

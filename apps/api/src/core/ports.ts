@@ -135,8 +135,8 @@ export interface ModelStore {
   listEnabled(): Promise<Model[]>;
   /** The enabled row for a public id (what consumers send as `model`). */
   findEnabledById(id: string): Promise<Model | undefined>;
-  /** The enabled row for a WebLLM id; undefined when unknown or disabled. */
-  findEnabledByWebllmId(webllmId: string): Promise<Model | undefined>;
+  /** The enabled row for a `ggufRef`; undefined when unknown or disabled. */
+  findEnabledByGgufRef(ggufRef: string): Promise<Model | undefined>;
 }
 
 export interface WorkerStore {

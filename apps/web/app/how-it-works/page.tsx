@@ -13,7 +13,7 @@ export const metadata: Metadata = pageMetadata({
 const steps = [
   {
     title: "Providers share a GPU",
-    body: "A contributor opens the Share page in Chrome or Edge. The browser downloads an open model once (about 2.4 GB, then cached) and runs it on the GPU through WebGPU, inside a Web Worker. The worker keeps a WebSocket open to the ShareInference server and waits for work.",
+    body: "A contributor opens the Share page in Chrome or Edge. The browser downloads an open model once (1.3 to 13.3 GB depending on the model, then cached) and runs it on the GPU through WebGPU, inside a Web Worker. The worker keeps a WebSocket open to the ShareInference server and waits for work.",
   },
   {
     title: "Consumers call an API",
@@ -25,7 +25,7 @@ const steps = [
   },
   {
     title: "Credits keep it fair",
-    body: "Every request costs credits (1 per input token, 5 per output token) and the provider who served it earns the same amount, so credits are only moved, never created or burned. Holders of credits are served first (priority lane); everyone else waits in a fair queue, which needs a GitHub account of at least 30 days.",
+    body: "Every request uses credits (1 per input token, 5 per output token) and the provider who served it earns the same amount, so credits are only moved, never created or burned. Holders of credits are served first (priority lane); everyone else waits in a fair queue, which needs a GitHub account of at least 30 days.",
   },
 ];
 
@@ -36,7 +36,7 @@ export default function HowItWorksPage() {
         <h1 className="text-2xl font-bold">How it works</h1>
         <p className="text-neutral-400">
           ShareInference is an open-source inference network: people lend GPU time from a browser tab and earn credits,
-          and credits pay for an OpenAI-compatible API.
+          and credits give access to an OpenAI-compatible API.
         </p>
       </div>
 

@@ -1,13 +1,13 @@
 # Share your GPU
 
-ShareInference runs on GPUs that people lend it. When you open the **Share GPU** page and press **Turn ON**, your browser downloads a language model, keeps it on your graphics card, and uses it to generate answers for other users. Every token you serve earns you credits, which you can spend on the OpenAI-compatible API.
+ShareInference runs on GPUs that people lend it. When you open the **Share GPU** page and press **Turn ON**, your browser downloads a language model, keeps it on your graphics card, and uses it to generate answers for other users. Every token you serve earns you credits, which you can use on the OpenAI-compatible API.
 
 ## What you need
 
 - A desktop **Chrome or Edge** (recent version) with WebGPU. Check by opening the Share page: it tells you what is missing.
-- A GPU with 16-bit shader support and roughly 4 GB of free video memory for the recommended model (smaller and larger models are listed on the Share page with what they need). Apple Silicon Macs and recent NVIDIA, AMD and Intel GPUs work.
+- A GPU with 16-bit shader support and roughly 3.5 GB of free video memory for the recommended model (smaller and larger models are listed on the Share page with what they need; the largest, Inkling-2-Mini, needs about 14 GB: a 16 GB GPU or a Mac with 24 GB or more). Apple Silicon Macs are tested; recent NVIDIA, AMD and Intel GPUs should work but have not been tested yet.
 - The page opened over **HTTPS** or on `localhost`. WebGPU does not work on a plain-HTTP address.
-- A download about the size of the model's memory need the first time (a few GB). The model is cached in your browser, so later starts take seconds.
+- A download of the model file the first time (about 1.3 to 13.3 GB depending on the model). The model is cached in your browser, so later starts take seconds.
 
 ## How it works
 
@@ -26,7 +26,7 @@ Credits for every token you generate for someone else. The exact rates are in th
 
 - Requests from other users are processed **in your browser**. The Share page never shows who asked or what was asked, and ShareInference stores no prompt or answer text.
 - Be aware that a technically skilled person could read the text with the browser's developer tools, because it passes through your machine. Share only if you are comfortable with that.
-- The Share page loads the WebLLM library from the jsDelivr CDN at a pinned version but without subresource integrity, so you trust that CDN for the code that runs in your tab.
+- The Share page runs its inference engine from ShareInference's own origin, so no third-party CDN supplies code to your tab. The model file itself is downloaded from Hugging Face.
 - ShareInference never sends you anyone's identity, API key or IP address.
 - Your GPU's vendor and architecture (for example "apple / metal-3") and an optional device label from Settings may appear on the public leaderboard. Your display name is public too.
 

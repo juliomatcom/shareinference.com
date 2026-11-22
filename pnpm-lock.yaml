@@ -230,6 +230,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@shareinference/wllama-webgpu':
+        specifier: workspace:*
+        version: link:../../libs/wllama-webgpu
       next:
         specifier: 16.4.6
         version: 16.4.6(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -276,6 +279,8 @@ importers:
       vitest:
         specifier: 5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  libs/wllama-webgpu: {}
 
 packages:
 

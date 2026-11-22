@@ -70,7 +70,7 @@ export interface LeaderboardEntry {
 
 export interface PublicModel {
   id: string;
-  webllmId: string;
+  ggufRef: string;
   contextWindow: number;
   priceMultiplier: number;
   workersOnline: number;
@@ -82,8 +82,15 @@ export const DEFAULT_MODEL_ID = "qwen3.5-4b";
 export const pickDefaultModel = <T extends { id: string }>(models: T[]): T | undefined =>
   models.find((m) => m.id === DEFAULT_MODEL_ID) ?? models[0];
 
-// GPU memory each model needs, in MB (WebLLM's catalog; the api does not send it). Unknown ids show no size.
-export const MODEL_VRAM_MB: Record<string, number> = { "qwen3.5-2b": 2245, "qwen3.5-4b": 3868, "qwen3.5-9b": 6433 };
+// GPU memory each model needs, in MB (measured with the engine at the model's context window, 16K unless noted: WebGPU model, KV, recurrent state and compute buffers; the api does not send it, keep it in step with `models.vram_mb`). Unknown ids show no size.
+export const MODEL_VRAM_MB: Record<string, number> = {
+  "qwen3.5-2b": 1491,
+  "qwen3.5-4b": 3256,
+  "qwen3.5-9b": 5544,
+  "gemma-4-e2b": 1615,
+  // Measured at its 8192 context window (the others at 16K): a 16 GB GPU or better.
+  "inkling-2-mini": 13689,
+};
 
 // Credit prices, mirrored from the api (wiki-llm/economy.md): the Playground shows what a reply cost without asking the
 // server. Keep in step with `apps/api/src/core/pricing.ts`; the server's settlement is the truth.

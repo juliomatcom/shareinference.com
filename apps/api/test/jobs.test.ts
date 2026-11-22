@@ -237,20 +237,20 @@ describe.skipIf(!testDatabaseUrl)("jobs: settlement, history, votes", () => {
     expect((await request(h.app).get("/jobs").set("Authorization", `Bearer ${key}`)).status).toBe(401);
   });
 
-  it("history is paged: 20 per page, newest first, with the total; a bad page is 400", async () => {
+  it("history is paged: 10 per page, newest first, with the total; a bad page is 400", async () => {
     const get = (q: string) => request(h.app).get(`/jobs${q}`).set("Cookie", cookies.carol!);
     const before = (await get("")).body.total as number;
     const made: string[] = [];
-    for (let i = 0; i < 21; i++) {
+    for (let i = 0; i < 11; i++) {
       h.clock.advance(1_000);
       made.push(await newJob("carol"));
     }
     const first = (await get("")).body;
-    expect(first).toMatchObject({ page: 1, pageSize: 20, total: before + 21 });
+    expect(first).toMatchObject({ page: 1, pageSize: 10, total: before + 11 });
     expect(first.jobs.map((j: { id: string }) => j.id)).toEqual(made.slice(1).reverse());
     const second = (await get("?page=2")).body.jobs as { id: string }[];
     expect(second[0]!.id).toBe(made[0]);
-    expect(second).toHaveLength(before + 1);
+    expect(second).toHaveLength(Math.min(10, before + 1));
     expect((await get("?page=99")).body.jobs).toEqual([]);
     for (const bad of ["0", "x", "2.5"]) expect((await get(`?page=${bad}`)).status).toBe(400);
   });

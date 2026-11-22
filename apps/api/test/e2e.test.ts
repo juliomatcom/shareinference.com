@@ -19,7 +19,7 @@ import {
   type Harness,
 } from "./helpers/harness.js";
 
-const MODEL = "Qwen3.5-4B-q4f16_1-MLC";
+const MODEL = "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf";
 const GPU = { vendor: "fake", architecture: "fake", shaderF16: true, maxBufferSize: 1 };
 
 type Mode = "plain" | "think" | "hold" | "silent" | "die-after-first-chunk";
@@ -424,7 +424,11 @@ describe.skipIf(!testDatabaseUrl)("end to end: openai SDK -> api -> fake provide
       expect(api).toHaveLength(2);
       // Headers carry nothing about the provider either.
       const headerRes = await play({ model: "qwen3.5-4b", messages });
-      const headers = [...headerRes.headers].map(([k, v]) => `${k}: ${v}`).join("\n");
+      // The etag is a hash of the body: random-looking text that can contain any short word by chance.
+      const headers = [...headerRes.headers]
+        .filter(([k]) => k !== "etag")
+        .map(([k, v]) => `${k}: ${v}`)
+        .join("\n");
       await headerRes.text();
       for (const secret of secrets) expect(headers.toLowerCase(), secret).not.toContain(String(secret).toLowerCase());
       for (const body of bodies) {
