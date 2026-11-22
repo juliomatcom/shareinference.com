@@ -16,7 +16,7 @@ Pre-auth budget: at most 300 sockets may be connected without having authenticat
 
 Wake-up: the page tells the worker (`wake`) when the tab becomes visible, the page resumes (`resume`, `pageshow`) or the network returns (`online`); the worker then heartbeats immediately and replaces the socket if no frame arrives within 4 s, or, when it was between connections, skips the rest of the backoff.
 
-Engine recovery: three consecutive jobs that fail with an engine exception (any error except a cancel or a prompt over the context window; only a successful job resets the count) make the worker close its socket, reload the model and reconnect, instead of staying online and failing every job. A job that has not settled 15 s after an abort is treated as a hung engine and triggers the same reload.
+Engine recovery: three consecutive jobs that fail with an engine exception (any error except a cancel or a prompt over the context window; only a successful job resets the count) make the worker close its socket, reload the model and reconnect, instead of staying online and failing every job. A job that has not settled 25 s after an abort (`ABORT_WATCHDOG_MS`, under the api's 30 s cancel grace; the engine only sees an abort between 512-token batches) is treated as a hung engine and triggers the same reload.
 
 Reconnect (browser): after any close the page requests a new token and the worker reconnects with exponential backoff (1 s doubling to 30 s, jittered by +-50%; the counter restarts only after a connection stayed up 30 s) without reloading the model; 4400, 4404, 4409 and 4429 are not retried (4403 closes mean the account is suspended; the page's next token request then fails and it stops).
 

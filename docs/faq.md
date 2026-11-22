@@ -70,20 +70,20 @@ Yes, 100%, under the AGPL-3.0 license. The code, the issue tracker and the docs 
 
 These are the current MVP defaults. They are set in code, so they can change as the network grows; the numbers on this page are the ones to rely on.
 
-| What                                                    | Limit                                                                                 |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Context window (prompt plus reply)                      | 16,384 tokens (8,192 for `inkling-2-mini`)                                            |
-| Reply length on the API (`max_tokens`)                  | Default 4,096, at most 8,192. Prompt plus `max_tokens` must fit the context window    |
-| Reply length in the Playground                          | 4,096 tokens (so about 12,000 tokens are left for the conversation)                   |
-| Playground message box                                  | 40,000 characters per message, at most 256 messages in a chat                         |
-| Request size (API)                                      | 256 KiB, 1 to 256 messages, text only                                                 |
-| Wait for the first token                                | 90 seconds, then the request is retried once on another provider                      |
-| Total time of one request                               | 10 minutes on the API, 5 minutes in the Playground                                    |
-| Wait in the queue                                       | 300 seconds, at most 100 queued requests per model                                    |
-| Rate limit, fair queue (no credits, balance 0 or below) | 10 requests per minute, 500 per day, 1 at a time; GitHub account at least 30 days old |
-| Rate limit, credit holders (balance above 0)            | 60 requests per minute, 4 at a time, no daily limit                                   |
-| API keys                                                | At most 20 active keys per account                                                    |
-| Sharing                                                 | At most 4 live GPUs per account, one model per browser, one tab per browser           |
+| What                                                    | Limit                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Context window (prompt plus reply)                      | 16,384 tokens (8,192 for `inkling-2-mini`)                                                                                                                                                                                                                             |
+| Reply length on the API (`max_tokens`)                  | Default 4,096, at most 8,192. Prompt plus `max_tokens` must fit the context window                                                                                                                                                                                     |
+| Reply length in the Playground                          | 4,096 tokens (2,048 for `inkling-2-mini`); about 12,000 tokens are left for the conversation (about 6,100 for `inkling-2-mini`)                                                                                                                                        |
+| Playground message box                                  | 40,000 characters per message, at most 256 messages in a chat                                                                                                                                                                                                          |
+| Request size (API)                                      | 256 KiB, 1 to 256 messages, text only                                                                                                                                                                                                                                  |
+| Wait for the first token                                | At least 90 seconds, longer for a long prompt: 30 seconds plus the prompt size at the model's minimum speed, up to 80% of the total time (a full 16K prompt on `qwen3.5-9b` can wait about 6 minutes on the API). Then the request is retried once on another provider |
+| Total time of one request                               | 10 minutes on the API, 5 minutes in the Playground                                                                                                                                                                                                                     |
+| Wait in the queue                                       | 300 seconds, at most 100 queued requests per model                                                                                                                                                                                                                     |
+| Rate limit, fair queue (no credits, balance 0 or below) | 10 requests per minute, 500 per day, 1 at a time; GitHub account at least 30 days old                                                                                                                                                                                  |
+| Rate limit, credit holders (balance above 0)            | 60 requests per minute, 4 at a time, no daily limit                                                                                                                                                                                                                    |
+| API keys                                                | At most 20 active keys per account                                                                                                                                                                                                                                     |
+| Sharing                                                 | At most 4 live GPUs per account, one model per browser, one tab per browser                                                                                                                                                                                            |
 
 Credit multipliers (credits per token are multiplied by this):
 

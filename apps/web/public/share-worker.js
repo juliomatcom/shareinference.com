@@ -25,8 +25,12 @@ const TOKEN_WAIT_MS = 15_000;
 // (request over n_ctx, or the context filling up mid-generation).
 const PROMPT_ERROR =
   /exceeds the available context size|context size has been exceeded|larger than the max context size|prompt (is )?too long/i;
-// A job that does not end this long after an abort is stuck (e.g. a hung engine after device loss): rebuild the engine.
+// How long Stop and an engine unload wait before giving up on a stuck engine.
 const INTERRUPT_WAIT_MS = 15_000;
+// A job that does not end this long after an abort is stuck (e.g. a hung engine after device loss): rebuild the engine.
+// The engine only sees an abort between 512-token batches, so on a slow GPU one batch can take well over 15 s; this
+// stays just under the api's 30 s cancel grace (`CANCEL_GRACE_MS`), after which the api gives up on the job anyway.
+const ABORT_WATCHDOG_MS = 25_000;
 // The api closed us for a reason that retrying cannot fix. Anything else, including 4413 (backlog) and 4408
 // (timeout), is retried with backoff.
 const FATAL_CLOSE = {
@@ -287,7 +291,7 @@ function interrupt() {
   const job = current;
   job.watchdog ??= setTimeout(() => {
     if (current === job) void recover();
-  }, INTERRUPT_WAIT_MS);
+  }, ABORT_WATCHDOG_MS);
 }
 
 // Resolves when `promise` does, or after `ms`, whichever is first (never rejects).
