@@ -76,7 +76,14 @@ describe.skipIf(!testDatabaseUrl)("inference: settlement retries, lost settlemen
     key = (await request(h.app).post("/keys").set("Cookie", consumerCookie).set(sameOrigin).send({ name: "k" })).body
       .key;
     h.core.registry.register("w-stub", providerId, "device-stub-1");
-    h.core.registry.markReady("w-stub", { id: "qwen3.5-4b", webllmId: "Qwen3.5-4B-q4f16_1-MLC" }, GPU);
+    h.core.registry.markReady(
+      "w-stub",
+      {
+        id: "qwen3.5-4b",
+        ggufRef: "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf",
+      },
+      GPU,
+    );
   });
   afterAll(async () => {
     await drainInflightWrites();

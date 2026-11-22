@@ -28,7 +28,14 @@ describe.skipIf(!testDatabaseUrl)("admission: lanes, free-tier age, rate limits"
     ({ db, drop } = await createTestDb());
     h = createHarness(db, { core: { dispatcher: { ...refusing, queueDepth: () => 0 } as Dispatcher } });
     h.core.registry.register("w1", "00000000-0000-4000-8000-000000000001", "device-admission");
-    h.core.registry.markReady("w1", { id: "qwen3.5-4b", webllmId: "Qwen3.5-4B-q4f16_1-MLC" }, GPU);
+    h.core.registry.markReady(
+      "w1",
+      {
+        id: "qwen3.5-4b",
+        ggufRef: "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf",
+      },
+      GPU,
+    );
   });
   afterAll(() => drop());
 

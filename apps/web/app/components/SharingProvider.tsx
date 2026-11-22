@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, pickDefaultModel, type PublicModel } from "../lib/api";
 import { useMe } from "./MeProvider";
 
-// Provider mode (wiki-llm/web.md): the Web Worker owns WebLLM and the socket. It lives here, in the root layout, so
+// Provider mode (wiki-llm/web.md): the Web Worker owns the wllama engine and the socket. It lives here, in the root layout, so
 // client-side navigation never stops it; only Stop, a failure, signing out or closing the tab does. The UI (the
 // /share page and the bottom `ShareBar`) only reads this state. It never sees consumer identity or content.
 
@@ -74,6 +74,25 @@ async function checkGpu(): Promise<GpuCheck> {
     return {
       status: "unsupported",
       reason: "This GPU lacks 16-bit shader support (shader-f16), which the model needs.",
+    };
+  }
+  // wllama's WebGPU path also needs JSPI, 64-bit wasm memory and cross-origin isolation (threads).
+  const hasJspi = "Suspending" in WebAssembly;
+  let hasMemory64 = false;
+  try {
+    new WebAssembly.Memory({ address: "i64", initial: BigInt(1) } as unknown as WebAssembly.MemoryDescriptor);
+    hasMemory64 = true;
+  } catch {
+    // not supported
+  }
+  if (!hasJspi || !hasMemory64) {
+    return { status: "unsupported", reason: "Sharing needs a recent desktop Chrome or Edge." };
+  }
+  // A server or proxy misconfiguration, not the browser: say so instead of telling the user to switch browsers.
+  if (!window.crossOriginIsolated) {
+    return {
+      status: "unsupported",
+      reason: "This page is not cross-origin isolated (COOP/COEP headers missing), so the engine cannot start.",
     };
   }
   return { status: "ok", info };
@@ -330,10 +349,10 @@ export function SharingProvider({ children }: { children: ReactNode }) {
     const w = new Worker("/share-worker.js", { type: "module" });
     worker.current = w;
     w.onmessage = (e) => onMessage(w, e.data);
-    w.onerror = () => end("The sharing worker failed to start (is the model CDN reachable?).");
+    w.onerror = () => end("The sharing worker failed to start (is the model download reachable?).");
     w.postMessage({
       type: "start",
-      model: model.webllmId,
+      model: model.ggufRef,
       contextWindow: model.contextWindow,
       apiUrl: config.data.apiPublicUrl,
       deviceKey: deviceKey(),

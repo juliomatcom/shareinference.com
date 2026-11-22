@@ -30,7 +30,7 @@ Your browser's `localStorage` holds a random device id for providers (`si_device
 - Requests from other users are processed **inside your browser**, in a Web Worker on your GPU. The Share page never displays who asked or what was asked, and it never receives the consumer's identity, API key, IP address or account id.
 - Be aware that the prompt text does pass through your machine. A technically skilled person could read it with the browser's developer tools. The interface simply never shows it. Share your GPU only if you are comfortable with that, and never log, keep, copy or use what you see (see the [terms](terms.md)).
 - You see your own live usage: jobs served, input and output tokens, tokens per second and credits earned.
-- The WebLLM library is loaded from the jsDelivr CDN at a pinned version, so you trust that CDN for the code that runs in your tab.
+- The inference engine is served from ShareInference's own origin (no third-party CDN). Model files are downloaded from Hugging Face.
 
 ## If you use the API (consumer)
 

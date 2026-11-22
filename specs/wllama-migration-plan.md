@@ -1,6 +1,6 @@
 # Migration plan: WebLLM to wllama (llama.cpp WebGPU)
 
-Status: ready to execute. Written 2026-11-21 from the `spikes/s2-wllama-webgpu` results.
+Status: executed 2026-11-21 (Phases 0 to 7; Phase 8 review and release pending). Written from the `spikes/s2-wllama-webgpu` results. Where this text differs from the shipped code, the code and `wiki-llm/` win. Later change: the engine is no longer the npm package but a build of our own fork (D47), so the npm pins and the "no fork or rebuild" non-goal below are history.
 
 **Executor:** Sonnet 5.5, working without the conversation that produced this plan. Everything you need is here or in the files it names. Work through the phases in order. **Test only at the two milestones** (Milestone 1 after Phase 2, Milestone 2 after Phase 6) and run the final checks in Phase 8. Between them, implement without stopping to test, apart from what you need to keep the code compiling.
 
@@ -273,6 +273,8 @@ export async function createEngine({ ref, contextWindow, onProgress, logger = SI
       ctx_shift: false,
       cache_idle_slots: false,
       n_cache_reuse: 0,
+      // An abort is only seen between batches, so the batch size bounds stop latency: the default 2048 took ~11 s on 9B.
+      n_batch: 512,
       jinja: true,
       reasoning_format: "none", // raw <think> tags in content: the api parses them (D31)
     });
@@ -385,7 +387,7 @@ Create `libs/wllama-webgpu/scripts/check-browser.mjs`. No new dependencies: star
 
 All cases pass on `qwen3.5-2b`, then cases A, B, G and H pass with `CHECK_MODEL` set to the `qwen3.5-9b` ref. Also run the unit test and sync from Phase 1 here.
 
-If case G fails on 9B, set `n_ubatch: 256` in `loadModel` and rerun. It cost about 4% prefill in the sweep and shortens each uninterruptible step. If case H fails, stop and report to the user: it would limit the usable context per model, and that is the user's call.
+Case G on 9B needed `n_batch: 512` (now in `loadModel`): the default 2048 batch took about 11 s to abort during prefill, 512 gives about 4 s. A smaller step (`n_ubatch: 256`) is the next lever; it cost about 4% prefill in the sweep. If case H fails, stop and report to the user: it would limit the usable context per model, and that is the user's call.
 
 ## 7. Phase 3: replace the engine in the worker and web app
 
@@ -653,7 +655,7 @@ Then, in a new migration, add `qwen3.5-27b` with:
 - `MIN_PREFILL_TPS` of 15.
 - A measured `vram_mb`. About 16.6 GB at 16K, so providers need a 16 GB+ card or a large unified-memory machine.
 
-Run cases A, B, G and H of the browser check on 27B first. Case G is the likely failure, because one 512-token step takes about 15 s at this speed, so use `n_ubatch: 256` if needed.
+Run cases A, B, G and H of the browser check on 27B first. Case G is the likely failure, because one 512-token step takes about 15 s at this speed, so try `n_ubatch: 256` if needed.
 
 ## 14. Definition of done
 
@@ -663,3 +665,20 @@ Run cases A, B, G and H of the browser check on 27B first. Case G is the likely 
 - Wiki, D46 and docs are updated.
 - Contrarian review findings are fixed.
 - Nothing was committed, pushed or deployed without the user asking.
+
+## 15. Open after execution (rough edges, 2026-11-21)
+
+Verified end to end on a Mac (Milestones 1 and 2, contrarian review fixed). Left for later iterations:
+
+- Long-jobs case H flaked once on Inkling-2-Mini (under investigation; not seen on the Qwen models).
+- The `ready.model` bound in the worker protocol went from 128 to 256 characters (longer `gguf_ref`s). Tabs and api must be
+  deployed together: an older api closes a longer ref with 4400.
+- Not run here: `docker compose up -d --build` (no Docker on the test Mac).
+- Inkling hardware gate is advisory: an under-sized GPU can pick it and download 13.3 GB before load fails; verified only on
+  Apple M5 Pro.
+- The worker watchdog and failure-counter fixes (Phase 8 review) were not exercised in a browser.
+- The legacy WebLLM cache name `webllm/` in `share-worker.js` is a guess; IndexedDB leftovers are not cleaned.
+- The first-chunk timeout uses an ascii/4 token estimate and M5 Pro speeds; slower Macs may time out on long prompts.
+- A long 9B prompt in the Playground can hit the 240 s first-chunk cap.
+- The Share page picks the recommended model after a reload instead of the last choice; the speed metric shows silly
+  values (for example 50,000 tok/s) on 2-token replies.

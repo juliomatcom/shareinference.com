@@ -4,7 +4,12 @@ import { MAX_FRAME_BYTES, inboundFrame, outboundFrame } from "../src/core/protoc
 const gpu = { vendor: "apple", architecture: "metal-3", shaderF16: true, maxBufferSize: 4294967296 };
 const valid = [
   { type: "auth", token: "t", protocol: 1, deviceKey: "abcdefgh-1234" },
-  { type: "ready", model: "Qwen3.5-4B-q4f16_1-MLC", gpu, loadMs: 1700 },
+  {
+    type: "ready",
+    model: "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf",
+    gpu,
+    loadMs: 1700,
+  },
   { type: "heartbeat" },
   { type: "chunk", id: "j1", delta: "<think>\n\n</think>\n\n" },
   {
@@ -14,6 +19,14 @@ const valid = [
     usage: { promptTokens: 5, completionTokens: 9, decodeTokensPerS: 40.5 },
   },
   { type: "error", id: "j1", code: "engine_error", message: "boom" },
+  // Inkling's ref is 132 characters: the cap on `model` must leave room for the catalog's longest ref.
+  {
+    type: "ready",
+    model:
+      "bartowski/thinkingmachines_Inkling-2-Mini-GGUF@76d57028717ed7c63f5e90de75234cae0bc9b360/thinkingmachines_Inkling-2-Mini-IQ3_XXS.gguf",
+    gpu,
+    loadMs: 8000,
+  },
 ];
 
 describe("inbound frames", () => {

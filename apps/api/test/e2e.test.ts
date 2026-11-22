@@ -19,7 +19,7 @@ import {
   type Harness,
 } from "./helpers/harness.js";
 
-const MODEL = "Qwen3.5-4B-q4f16_1-MLC";
+const MODEL = "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf";
 const GPU = { vendor: "fake", architecture: "fake", shaderF16: true, maxBufferSize: 1 };
 
 type Mode = "plain" | "think" | "hold" | "silent" | "die-after-first-chunk";

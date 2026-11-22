@@ -15,8 +15,12 @@ export interface StreamResult {
   finishReason: string | null;
 }
 
-/** Tokens reserved for every reply: sent as `max_tokens` (the api default) and counted in the context meter. */
-export const MAX_TOKENS = 4096;
+/** Tokens reserved for a reply: sent as `max_tokens` (the api default) and counted in the context meter. */
+const MAX_TOKENS = 4096;
+// Inkling decodes at about 17 tok/s: 4096 tokens would need ~241 s plus prefill, close to the 300 s Playground job timeout
+// (a timeout moves no credits, D43), so its reply is capped lower. A Map: model ids come from the api.
+const MAX_TOKENS_BY_MODEL = new Map([["inkling-2-mini", 2048]]);
+export const maxTokensFor = (modelId: string): number => MAX_TOKENS_BY_MODEL.get(modelId) ?? MAX_TOKENS;
 
 export class ChatError extends Error {
   constructor(
@@ -51,7 +55,7 @@ export async function streamChat(
         messages: req.messages,
         stream: true,
         stream_options: { include_usage: true },
-        max_tokens: MAX_TOKENS,
+        max_tokens: maxTokensFor(req.model),
         enable_thinking: req.enableThinking,
       }),
     });

@@ -217,8 +217,8 @@ export default function Share() {
               })}
             </fieldset>
             <p className="text-xs text-neutral-400">
-              The first start downloads about as much as the model needs in GPU memory; it is cached in your browser
-              afterwards. You cannot change the model while sharing: press Stop first.
+              The first start downloads the model file (about 1.3 to 13.3 GB depending on the model); it is cached in
+              your browser afterwards. You cannot change the model while sharing: press Stop first.
             </p>
           </>
         ) : (

@@ -1,0 +1,17 @@
+{
+  "name": "@shareinference/wllama-webgpu",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./engine": "./src/engine.js",
+    "./shader-patch": "./src/shader-patch.js",
+    "./profiles": "./src/profiles.js"
+  },
+  "scripts": {
+    "sync": "node scripts/sync-assets.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check:browser": "node scripts/check-browser.mjs",
+    "build:engine": "node build/build.mjs"
+  }
+}

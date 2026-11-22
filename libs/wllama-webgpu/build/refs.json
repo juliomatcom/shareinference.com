@@ -1,0 +1,20 @@
+{
+  "engineId": "wllama-3.13.0-b12613",
+  "wllama": {
+    "fork": "https://github.com/juliomatcom/wllama",
+    "branch": "shareinference",
+    "base": "3.13.0",
+    "commit": "df2649c1fdffc16f6dcc65610158d6ad2d72db8b"
+  },
+  "llamaCpp": {
+    "tag": "b12613",
+    "commit": "362ac929749d56e433878585a8506f24968698b4"
+  },
+  "emsdk": "4.0.20",
+  "dawn": {
+    "tag": "v20260317.182325",
+    "url": "https://github.com/google/dawn/releases/download/v20260317.182325/emdawnwebgpu_pkg-v20260317.182325.zip",
+    "sha256": "8dcae86c630d76b6794b271c6572becba36f4237d132bee121a56638c3d76575"
+  },
+  "cmakeFlags": ["-DGGML_WEBGPU=ON", "-DGGML_WEBGPU_JSPI=ON", "-DWLLAMA_TEST_BACKEND=OFF"]
+}

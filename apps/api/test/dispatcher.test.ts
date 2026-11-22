@@ -21,7 +21,12 @@ import { createRegistry } from "../src/core/registry.js";
 import { FakeClock } from "./helpers/harness.js";
 
 const GPU = { vendor: "x", architecture: "y", shaderF16: true, maxBufferSize: 1 };
-const MODEL = { id: "qwen3.5-4b", webllmId: "Qwen3.5-4B-q4f16_1-MLC", contextWindow: 4096, priceMultiplier: 1 };
+const MODEL = {
+  id: "qwen3.5-4b",
+  ggufRef: "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf",
+  contextWindow: 4096,
+  priceMultiplier: 1,
+};
 
 /** Timers run only when the test advances time. */
 class ManualScheduler implements Scheduler {
@@ -72,7 +77,7 @@ function setup() {
 
   function worker(id: string, userId: string, model = MODEL) {
     registry.register(id, userId, `device-${id}`);
-    registry.markReady(id, { id: model.id, webllmId: model.webllmId }, GPU);
+    registry.markReady(id, { id: model.id, ggufRef: model.ggufRef }, GPU);
     dispatcher.onWorkerReady(id);
   }
   /** A worker is gone: registry first (like the adapter), then the dispatcher. */
@@ -170,7 +175,7 @@ describe("dispatcher", () => {
     t.worker("w1", "provider");
     const a = t.job("c1");
     const b = t.job("c2");
-    expect(t.dispatcher.queueDepth(MODEL.webllmId)).toBe(1);
+    expect(t.dispatcher.queueDepth(MODEL.ggufRef)).toBe(1);
     t.chunk("w1", a.jobId, "He");
     t.chunk("w1", a.jobId, "llo");
     t.done("w1", a.jobId);
@@ -179,14 +184,14 @@ describe("dispatcher", () => {
     expect(a.result()).toMatchObject({ finishReason: "stop", providerId: "provider", workerId: "w1" });
     // The next queued job went straight out.
     expect(t.jobFrames("w1").map((s) => (s.frame as { id: string }).id)).toEqual([a.jobId, b.jobId]);
-    expect(t.dispatcher.queueDepth(MODEL.webllmId)).toBe(0);
+    expect(t.dispatcher.queueDepth(MODEL.ggufRef)).toBe(0);
   });
 
   it("fails fast with no_providers when no worker of the model is online", () => {
     const t = setup();
     const j = t.job("c1");
     expect(j.failure()).toBe("no_providers");
-    expect(t.dispatcher.queueDepth(MODEL.webllmId)).toBe(0);
+    expect(t.dispatcher.queueDepth(MODEL.ggufRef)).toBe(0);
   });
 
   it("never routes a job to its consumer's own worker", () => {
@@ -195,7 +200,7 @@ describe("dispatcher", () => {
     const own = t.job("alice");
     expect(t.jobFrames()).toHaveLength(0);
     expect(own.events).toEqual([]);
-    expect(t.dispatcher.queueDepth(MODEL.webllmId)).toBe(1);
+    expect(t.dispatcher.queueDepth(MODEL.ggufRef)).toBe(1);
     // Another consumer is served by that worker even though alice is ahead in the queue.
     const other = t.job("bob");
     expect(other.events).toEqual(["start:mine"]);
@@ -279,7 +284,7 @@ describe("dispatcher", () => {
     t.dispatcher.onError("w1", { type: "error", id: a.jobId, code: "engine_error", message: "x" });
     // The worker that just failed is not asked again: the retry waits for another one.
     expect(a.events).toEqual(["start:w1"]);
-    expect(t.dispatcher.queueDepth(MODEL.webllmId)).toBe(1);
+    expect(t.dispatcher.queueDepth(MODEL.ggufRef)).toBe(1);
     t.worker("w2", "p2");
     expect(a.events).toEqual(["start:w1", "start:w2"]);
     t.dispatcher.onError("w2", { type: "error", id: a.jobId, code: "engine_error", message: "x" });
@@ -331,6 +336,19 @@ describe("dispatcher", () => {
     t.scheduler.advance(CANCEL_GRACE_MS);
     expect(t.dropped).toEqual([{ workerId: stuck, code: 4408 }]);
     expect(t.registry.get(stuck)).toBeUndefined();
+  });
+
+  it("a job's own first-chunk timeout fires at its value, not at 90 s", () => {
+    const t = setup();
+    t.worker("w1", "p1");
+    const a = t.job("c1", { firstChunkTimeoutMs: 200_000 });
+    t.scheduler.advance(FIRST_CHUNK_TIMEOUT_MS);
+    expect(t.cancels()).toEqual([]);
+    t.scheduler.advance(200_000 - FIRST_CHUNK_TIMEOUT_MS - 1);
+    expect(t.cancels()).toEqual([]);
+    t.scheduler.advance(1);
+    expect(t.cancels().map((c) => c.workerId)).toEqual(["w1"]);
+    expect(a.chunks).toEqual([]);
   });
 
   it("a worker that confirms the cancel in time is freed and keeps its socket", () => {
@@ -396,7 +414,7 @@ describe("dispatcher", () => {
     expect(waiting.failure()).toBeUndefined();
     t.scheduler.advance(1);
     expect(waiting.failure()).toBe("network_busy");
-    expect(t.dispatcher.queueDepth(MODEL.webllmId)).toBe(0);
+    expect(t.dispatcher.queueDepth(MODEL.ggufRef)).toBe(0);
   });
 
   it("queues at most 100 per model; the 101st is network_busy at once", () => {
@@ -404,9 +422,9 @@ describe("dispatcher", () => {
     t.worker("w1", "p1");
     t.job("c0"); // runs
     for (let i = 0; i < MAX_QUEUED_PER_MODEL; i++) expect(t.job(`c${i + 1}`).failure()).toBeUndefined();
-    expect(t.dispatcher.queueDepth(MODEL.webllmId)).toBe(MAX_QUEUED_PER_MODEL);
+    expect(t.dispatcher.queueDepth(MODEL.ggufRef)).toBe(MAX_QUEUED_PER_MODEL);
     expect(t.job("overflow").failure()).toBe("network_busy");
-    expect(t.dispatcher.queueDepth(MODEL.webllmId)).toBe(MAX_QUEUED_PER_MODEL);
+    expect(t.dispatcher.queueDepth(MODEL.ggufRef)).toBe(MAX_QUEUED_PER_MODEL);
   });
 
   it("cancel of a queued job just removes it, without callbacks", () => {
@@ -415,7 +433,7 @@ describe("dispatcher", () => {
     t.job("c1");
     const waiting = t.job("c2");
     waiting.handle.cancel();
-    expect(t.dispatcher.queueDepth(MODEL.webllmId)).toBe(0);
+    expect(t.dispatcher.queueDepth(MODEL.ggufRef)).toBe(0);
     t.scheduler.advance(MAX_QUEUE_WAIT_MS * 2);
     expect(waiting.events).toEqual([]);
   });
@@ -450,7 +468,7 @@ describe("dispatcher", () => {
     expect(t.dropped).toEqual([]);
   });
 
-  it("a worker that ignores a consumer cancel is dropped after the 10 s grace", () => {
+  it("a worker that ignores a consumer cancel is dropped after the cancel grace", () => {
     const t = setup();
     t.worker("w1", "p1");
     const a = t.job("c1");
@@ -464,7 +482,7 @@ describe("dispatcher", () => {
     expect(a.cancelled).toEqual([undefined]);
   });
 
-  it("a consumer cancel after output is billed for the delivered chunks only, within the grace", () => {
+  it("a consumer cancel after output is billed for the delivered chunks plus the slack only, within the grace", () => {
     const t = setup();
     t.worker("w1", "p1");
     const a = t.job("c1", { params: { max_tokens: 100 } });
@@ -473,7 +491,7 @@ describe("dispatcher", () => {
     t.chunk("w1", a.jobId, "never delivered");
     t.done("w1", a.jobId, { promptTokens: 20, completionTokens: 80, decodeTokensPerS: 4 });
     expect(a.cancelled).toEqual([
-      { usage: { promptTokens: 20, completionTokens: 3, decodeTokensPerS: 4 }, providerId: "p1", workerId: "w1" },
+      { usage: { promptTokens: 20, completionTokens: 11, decodeTokensPerS: 4 }, providerId: "p1", workerId: "w1" },
     ]);
     expect(a.events).toEqual(["start:w1"]);
   });
@@ -593,13 +611,30 @@ describe("dispatcher", () => {
     });
     for (let i = 0; i < 4; i++) t.chunk("w1", a.jobId);
     t.done("w1", a.jobId, { promptTokens: 999_999, completionTokens: 1_000, decodeTokensPerS: 7 });
-    expect(a.result()!.usage).toEqual({ promptTokens: 4096, completionTokens: 4, decodeTokensPerS: 7 });
+    expect(a.result()!.usage).toEqual({ promptTokens: 4096, completionTokens: 5, decodeTokensPerS: 7 });
     expect(t.log.warn).toHaveBeenCalledWith("usage_capped", expect.objectContaining({ job_id: a.jobId }));
 
     const b = t.job("c2", { params: { max_tokens: 3 } });
     for (let i = 0; i < 3; i++) t.chunk("w1", b.jobId);
     t.done("w1", b.jobId, { promptTokens: 10, completionTokens: 50, decodeTokensPerS: 1 });
     expect(b.result()!.usage.completionTokens).toBe(3);
+  });
+
+  it("completion tokens may exceed the chunks by the slack (dropped marker tokens); beyond it they are capped", () => {
+    const t = setup();
+    t.worker("w1", "p1");
+    const a = t.job("c1");
+    t.chunk("w1", a.jobId);
+    t.chunk("w1", a.jobId);
+    t.done("w1", a.jobId, { promptTokens: 7, completionTokens: 10, decodeTokensPerS: 3 }); // 2 chunks + 8
+    expect(a.result()!.usage.completionTokens).toBe(10);
+    expect(t.log.warn).not.toHaveBeenCalled();
+
+    const b = t.job("c2");
+    t.chunk("w1", b.jobId);
+    t.done("w1", b.jobId, { promptTokens: 7, completionTokens: 10, decodeTokensPerS: 3 }); // 1 chunk + 8 = 9
+    expect(b.result()!.usage.completionTokens).toBe(9);
+    expect(t.log.warn).toHaveBeenCalledWith("usage_capped", expect.objectContaining({ job_id: b.jobId }));
   });
 
   it("honest usage is not touched and not logged", () => {

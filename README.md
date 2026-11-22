@@ -28,7 +28,7 @@ flowchart LR
     L -. "5. credits move<br/>consumer to provider" .-> P
 ```
 
-1. **Providers** open the Share page, turn sharing on, and their browser loads an open-weight model onto the GPU (WebLLM, no install). They keep a WebSocket open to the API.
+1. **Providers** open the Share page, turn sharing on, and their browser loads an open-weight model onto the GPU (wllama, an engine we build from our own fork to track llama.cpp; no install). They keep a WebSocket open to the API.
 2. **Consumers** call the OpenAI-compatible API (or the web Playground) with an API key. The model is chosen by the consumer; the provider is chosen blindly by the router and never sees who asked.
 3. The API orchestrates only: it queues the request (priority lane for credit holders, a fair queue for everyone else), sends it to a ready GPU, relays the streamed answer, and settles credits in one database transaction. Inference itself never runs on our servers.
 4. Providers **earn** credits for the tokens they serve (1 per input token, 5 per output token); consumers **spend** them. Credits only move between users, they are never burned.
@@ -37,7 +37,7 @@ Prompts are processed in a contributor's browser, so treat them as shared with a
 
 ## Status
 
-The MVP works end to end: GitHub sign-in, API keys, a small model catalog (Qwen3.5 2B, 4B and 9B, Gemma 4 E2B) that providers choose from, browser GPU sharing that keeps running while you browse, a credit ledger, a Playground, a dashboard with paged ledger and history, and a public leaderboard. Early days, so expect rough edges. The plan, decisions and verification log live in [`specs/mvp-plan.md`](specs/mvp-plan.md).
+The MVP works end to end: GitHub sign-in, API keys, a small model catalog (Qwen3.5 2B, 4B and 9B, Gemma 4 E2B, Inkling-2-Mini) that providers choose from, browser GPU sharing that keeps running while you browse, a credit ledger, a Playground, a dashboard with paged ledger and history, and a public leaderboard. Early days, so expect rough edges. The plan, decisions and verification log live in [`specs/mvp-plan.md`](specs/mvp-plan.md).
 
 ## Quickstart
 

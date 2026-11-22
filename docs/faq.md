@@ -24,7 +24,7 @@ So nobody can farm credits by talking to themselves. A request is never routed t
 
 ### Which browsers and GPUs work?
 
-A recent desktop Chrome or Edge with WebGPU, opened over HTTPS (or `localhost`). Firefox and Safari are not supported yet. Apple Silicon Macs and recent NVIDIA, AMD and Intel GPUs work. The Share page checks your setup and tells you what is missing.
+A recent desktop Chrome or Edge with WebGPU, opened over HTTPS (or `localhost`). Firefox and Safari are not supported yet. Apple Silicon Macs are tested; recent NVIDIA, AMD and Intel GPUs should work but have not been tested yet. The Share page checks your setup and tells you what is missing.
 
 ### Which model should I pick on the Share page?
 
@@ -72,7 +72,7 @@ These are the current MVP defaults. They are set in code, so they can change as 
 
 | What                                         | Limit                                                                                 |
 | -------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Context window (prompt plus reply)           | 16,384 tokens, every model                                                            |
+| Context window (prompt plus reply)           | 16,384 tokens (8,192 for `inkling-2-mini`)                                            |
 | Reply length on the API (`max_tokens`)       | Default 4,096, at most 8,192. Prompt plus `max_tokens` must fit the context window    |
 | Reply length in the Playground               | 4,096 tokens (so about 12,000 tokens are left for the conversation)                   |
 | Playground message box                       | 40,000 characters per message, at most 256 messages in a chat                         |
@@ -87,12 +87,13 @@ These are the current MVP defaults. They are set in code, so they can change as 
 
 Price multipliers (credits per token are multiplied by this):
 
-| Model         | Multiplier |
-| ------------- | ---------- |
-| `qwen3.5-2b`  | x1         |
-| `qwen3.5-4b`  | x1         |
-| `qwen3.5-9b`  | x2         |
-| `gemma-4-e2b` | x1         |
+| Model            | Multiplier |
+| ---------------- | ---------- |
+| `qwen3.5-2b`     | x1         |
+| `qwen3.5-4b`     | x1         |
+| `qwen3.5-9b`     | x2         |
+| `gemma-4-e2b`    | x1         |
+| `inkling-2-mini` | x3         |
 
 Notes:
 

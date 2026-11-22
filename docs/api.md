@@ -12,7 +12,7 @@ Want to try it first? The **Playground** (signed in, no key needed) lets you cha
 
 ## Credits, in short
 
-A request costs `(prompt tokens × 1 + completion tokens × 5) × the model's price multiplier` credits (x1 for most models, x2 for `qwen3.5-9b`) and the provider that served it earns the same amount. You earn credits by sharing your GPU on the **Share** page. Your balance may go below zero: you are then in the _fair lane_, served after everyone with credits, and only if your GitHub account is at least 30 days old. See the [economy](../wiki-llm/economy.md) page for the rules, and the [FAQ](faq.md) for every limit in one table.
+A request costs `(prompt tokens × 1 + completion tokens × 5) × the model's price multiplier` credits (x1 for most models, x2 for `qwen3.5-9b`, x3 for `inkling-2-mini`) and the provider that served it earns the same amount. You earn credits by sharing your GPU on the **Share** page. Your balance may go below zero: you are then in the _fair lane_, served after everyone with credits, and only if your GitHub account is at least 30 days old. See the [economy](../wiki-llm/economy.md) page for the rules, and the [FAQ](faq.md) for every limit in one table.
 
 ## List models
 

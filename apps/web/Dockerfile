@@ -8,8 +8,10 @@ RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/
+COPY libs/wllama-webgpu/package.json libs/wllama-webgpu/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter "@shareinference/web..."
+COPY libs/wllama-webgpu libs/wllama-webgpu
 COPY apps/web apps/web
 # The /docs pages render these files at build time.
 COPY docs docs
@@ -24,7 +26,7 @@ WORKDIR /app
 # Standalone output keeps the monorepo layout (outputFileTracingRoot = repo root).
 COPY --from=build /app/apps/web/.next/standalone ./
 COPY --from=build /app/apps/web/.next/static apps/web/.next/static
-# Not part of the standalone output: serves /share-worker.js.
+# Not part of the standalone output: serves /share-worker.js and the engine files the build generated in /engine.
 COPY --from=build /app/apps/web/public apps/web/public
 USER node
 EXPOSE 3000

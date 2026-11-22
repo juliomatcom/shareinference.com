@@ -8,9 +8,9 @@ import { creditsFor, formatNumber, pickDefaultModel, type PublicModel } from "..
 import {
   ChatError,
   MAX_MESSAGES,
-  MAX_TOKENS,
   estimateTokens,
   friendlyError,
+  maxTokensFor,
   streamChat,
   tooLongText,
   type ChatMessage,
@@ -91,7 +91,8 @@ export default function Playground() {
   const text = draft.trim();
   const next: ChatMessage[] = text ? [...sendable, { role: "user", content: text }] : sendable;
   const contextWindow = model?.contextWindow ?? 0;
-  const used = estimateTokens(next) + MAX_TOKENS;
+  const reserved = model ? maxTokensFor(model.id) : 0; // the reply budget this model is sent with
+  const used = estimateTokens(next) + reserved;
   const tooLong = model !== undefined && (used > contextWindow || next.length > MAX_MESSAGES);
   const fresh = sendable.length === 0;
 
@@ -344,7 +345,7 @@ export default function Playground() {
                 </div>
                 <span>
                   Context: ~{formatNumber(used)} of {formatNumber(contextWindow)} tokens (includes{" "}
-                  {formatNumber(MAX_TOKENS)} reserved for the reply)
+                  {formatNumber(reserved)} reserved for the reply)
                 </span>
               </div>
               {tooLong ? (

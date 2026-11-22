@@ -33,7 +33,7 @@ WebSocket: `GET /v1/worker` (upgrade; token auth in first message).
 ## Provider routes
 
 - `GET /public/config` -> `{ apiPublicUrl }` (the `API_PUBLIC_URL` value).
-- `GET /public/models` -> `{ models: [{ id, webllmId, contextWindow, priceMultiplier, workersOnline, queueDepth }] }`: enabled catalog rows; `priceMultiplier` is the credit multiplier ([economy.md](economy.md)), used by the Playground to show what a reply cost; `workersOnline` counts ready and busy workers of that model; `queueDepth` is the number of jobs waiting for a worker of that model.
+- `GET /public/models` -> `{ models: [{ id, ggufRef, contextWindow, priceMultiplier, workersOnline, queueDepth }] }`: enabled catalog rows; `priceMultiplier` is the credit multiplier ([economy.md](economy.md)), used by the Playground to show what a reply cost; `workersOnline` counts ready and busy workers of that model; `queueDepth` is the number of jobs waiting for a worker of that model.
 - `POST /worker-token` -> `{ token, expiresInS }` (above).
 - `GET /worker/stats` -> `{ totals: { jobsServed, promptTokens, completionTokens, creditsEarned }, workers: [{ id, status, model, connectedAt }] }`, the caller's own. `status` is `connected` (authenticated, not yet ready), `ready` (idle) or `busy`; `model` is the public id.
 

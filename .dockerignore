@@ -6,3 +6,7 @@
 !**/.env.example
 spikes
 results
+# The wllama fork (a git submodule) and its build cache are only for rebuilding the engine; the built output in
+# libs/wllama-webgpu/vendor is what ships.
+libs/wllama-webgpu/wllama
+libs/wllama-webgpu/.build-cache

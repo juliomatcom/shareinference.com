@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   // pnpm links node_modules into the workspace root: trace from there.
   outputFileTracingRoot: path.join(__dirname, "../.."),
   poweredByHeader: false,
-  // No CSP yet: deferred post-MVP (D39; WebLLM needs CDN, Hugging Face and wasm allowances; wiki-llm/conventions.md).
+  // No CSP yet: deferred post-MVP (D39; the engine needs Hugging Face and wasm allowances; wiki-llm/conventions.md).
   headers: async () => [
     {
       source: "/:path*",
@@ -17,7 +17,17 @@ const nextConfig: NextConfig = {
         { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        // Needed for wasm threads. Set on every page because sharing survives client-side navigation from the root
+        // layout. `credentialless` keeps third-party images such as GitHub avatars working.
+        { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+        { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
       ],
+    },
+    // The built engine files carry the engine id in the path. engine.js, completion.js, profiles.js and shader-patch.js are ours and
+    // can change without a version bump, so they are not immutable.
+    {
+      source: "/engine/:version/wllama/:path*",
+      headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
     },
     // Signed-in pages and the proxied api are never for search results or archives (the pages also say so in their
     // meta tags and robots.txt; Caddy additionally refuses crawler User-Agents there, see ops/caddy/Caddyfile).

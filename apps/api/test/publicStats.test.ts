@@ -100,7 +100,7 @@ describe.skipIf(!testDatabaseUrl)("public stats and leaderboard", () => {
             user_id: ids[user],
             device_key: key,
             gpu: JSON.stringify(gpu),
-            last_model: "Qwen3.5-4B-q4f16_1-MLC",
+            last_model: "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf",
           })
           .returning("id")
       )[0].id as string;
@@ -151,7 +151,10 @@ describe.skipIf(!testDatabaseUrl)("public stats and leaderboard", () => {
     h.core.registry.register("w1", ids.bobby!, "bobby-device");
     h.core.registry.markReady(
       "w1",
-      { id: "qwen3.5-4b", webllmId: "Qwen3.5-4B-q4f16_1-MLC" },
+      {
+        id: "qwen3.5-4b",
+        ggufRef: "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf",
+      },
       {
         vendor: "apple",
         architecture: "metal-3",
@@ -294,7 +297,10 @@ describe.skipIf(!testDatabaseUrl)("public leaderboard at volume", () => {
     h.core.registry.register("wb", id, "device-busy");
     h.core.registry.markReady(
       "wb",
-      { id: "qwen3.5-4b", webllmId: "Qwen3.5-4B-q4f16_1-MLC" },
+      {
+        id: "qwen3.5-4b",
+        ggufRef: "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf",
+      },
       {
         vendor: "apple",
         architecture: "metal-3",
@@ -322,7 +328,7 @@ describe.skipIf(!testDatabaseUrl)("public leaderboard at volume", () => {
       workerId,
       {
         type: "ready",
-        model: "Qwen3.5-4B-q4f16_1-MLC",
+        model: "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf",
         loadMs: 1,
         gpu: { vendor: "<b>evil</b>\u202e", architecture: "x".repeat(64), shaderF16: true, maxBufferSize: 1 },
       },

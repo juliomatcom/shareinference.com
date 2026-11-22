@@ -13,7 +13,7 @@ export const metadata: Metadata = pageMetadata({
 const steps = [
   {
     title: "Providers share a GPU",
-    body: "A contributor opens the Share page in Chrome or Edge. The browser downloads an open model once (about 2.4 GB, then cached) and runs it on the GPU through WebGPU, inside a Web Worker. The worker keeps a WebSocket open to the ShareInference server and waits for work.",
+    body: "A contributor opens the Share page in Chrome or Edge. The browser downloads an open model once (1.3 to 13.3 GB depending on the model, then cached) and runs it on the GPU through WebGPU, inside a Web Worker. The worker keeps a WebSocket open to the ShareInference server and waits for work.",
   },
   {
     title: "Consumers call an API",

@@ -73,7 +73,7 @@ export function createPublicStats(deps: {
       return {
         tokensServed: totals.tokensServed,
         activeWorkers: registry.readyCount(),
-        modelsOnline: enabled.filter((m) => registry.onlineCount(m.webllmId) > 0).length,
+        modelsOnline: enabled.filter((m) => registry.onlineCount(m.ggufRef) > 0).length,
         jobsServed: totals.jobsServed,
       };
     }),

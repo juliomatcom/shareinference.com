@@ -47,7 +47,7 @@ export class PostgresPublicStore implements PublicStore {
 
     // The most recently seen device that announced a GPU, with the public id of its last model.
     const devices: Row[] = await this.db("workers as w")
-      .leftJoin("models as m", "m.webllm_id", "w.last_model")
+      .leftJoin("models as m", "m.gguf_ref", "w.last_model")
       .whereIn("w.user_id", ids)
       .whereNotNull("w.gpu")
       .distinctOn("w.user_id")

@@ -12,7 +12,7 @@ import { outboundFrame, type OutboundFrame } from "./core/protocol.js";
 // serves jobs with canned output. Run inside the api container: `pnpm fake-worker <login> [--seconds N] [--api URL]`.
 // Without --seconds it stops when stdin closes (Ctrl-C on the client, or the pipe ending); with it, after N seconds.
 // Never point it at a public server: anyone able to run it holds a session.
-const MODEL = "Qwen3.5-4B-q4f16_1-MLC";
+const MODEL = "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf";
 const GPU = { vendor: "fake", architecture: "fake-gpu", shaderF16: true, maxBufferSize: 4_294_967_296 };
 const CANNED = ["Hello", " from", " the", " fake", " worker", "."];
 const bootLog = createLogger("fake-worker");

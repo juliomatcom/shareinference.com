@@ -1,0 +1,5 @@
+[submodule "libs/wllama-webgpu/wllama"]
+	path = libs/wllama-webgpu/wllama
+	url = https://github.com/juliomatcom/wllama
+	branch = shareinference
+	shallow = true

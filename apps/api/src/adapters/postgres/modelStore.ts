@@ -5,7 +5,7 @@ import type { Row } from "./rows.js";
 
 const toModel = (r: Row): Model => ({
   id: r.id as string,
-  webllmId: r.webllm_id as string,
+  ggufRef: r.gguf_ref as string,
   contextWindow: contextWindowFor(r.id as string),
   vramMb: r.vram_mb as number,
   priceMultiplier: r.price_multiplier as number,
@@ -24,8 +24,8 @@ export class PostgresModelStore implements ModelStore {
     return row && toModel(row);
   }
 
-  async findEnabledByWebllmId(webllmId: string): Promise<Model | undefined> {
-    const row = await this.db("models").where({ webllm_id: webllmId, enabled: true }).first();
+  async findEnabledByGgufRef(ggufRef: string): Promise<Model | undefined> {
+    const row = await this.db("models").where({ gguf_ref: ggufRef, enabled: true }).first();
     return row && toModel(row);
   }
 }

@@ -5,8 +5,12 @@
 useDefault = true
 
 [allowlist]
-description = "False positives: a vendored skill doc (WebCrypto algorithm names) and a made-up test deviceKey"
+description = "False positives: a vendored skill doc (WebCrypto algorithm names), a made-up test deviceKey, and the third-party wllama submodule checkout"
 paths = [
   '''(^|/)\.agents/skills/modern-web-guidance/guides/security/client-side-encryption\.md$''',
   '''(^|/)apps/api/test/protocol\.test\.ts$''',
+  # libs/wllama-webgpu/wllama/ is a git submodule checkout of our fork (upstream wllama and llama.cpp: test fixtures,
+  # docs). Only its gitlink is committed, so `gitleaks git` never sees it; this path only silences the working-tree scan
+  # (`gitleaks dir .`). Nothing else under libs/wllama-webgpu/ is allowlisted.
+  '''(^|/)libs/wllama-webgpu/wllama/''',
 ]

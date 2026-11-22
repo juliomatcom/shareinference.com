@@ -13,7 +13,10 @@ import {
 } from "./helpers/harness.js";
 
 const GPU = { vendor: "x", architecture: "y", shaderF16: true, maxBufferSize: 1 };
-const MODEL = { id: "qwen3.5-4b", webllmId: "Qwen3.5-4B-q4f16_1-MLC" };
+const MODEL = {
+  id: "qwen3.5-4b",
+  ggufRef: "unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf",
+};
 
 // ~13 000 tokens by the api's estimate (4 ASCII characters per token), against a 16 384-token window.
 const longPrompt = [{ role: "user", content: "x".repeat(4 * 13_000) }];
