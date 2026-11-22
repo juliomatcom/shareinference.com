@@ -11,18 +11,9 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: shareinference
-          POSTGRES_PASSWORD: ci
-          POSTGRES_DB: shareinference_test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U shareinference -d shareinference_test"
-          --health-interval 5s --health-timeout 5s --health-retries 10
+    runs-on: self-hosted
+    # The runner is our own machine and this repository is public: a fork's pull request must never run code on it.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       TEST_DATABASE_URL: postgres://shareinference:ci@127.0.0.1:5432/shareinference_test
     steps:
@@ -34,6 +25,19 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      # The runner has no Docker daemon until asked (service containers cannot be used, so Postgres is started by hand).
+      - run: start-dockerd
+      - name: Start Postgres
+        run: |
+          docker rm -f ci-postgres 2>/dev/null || true
+          docker run -d --name ci-postgres -p 127.0.0.1:5432:5432 \
+            -e POSTGRES_USER=shareinference -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=shareinference_test postgres:17
+          for i in $(seq 1 30); do
+            docker exec ci-postgres pg_isready -U shareinference -d shareinference_test && exit 0
+            sleep 2
+          done
+          docker logs ci-postgres
+          exit 1
       - run: pnpm install --frozen-lockfile
       # Shared libraries (libs/) compile to dist; lint, test and the api import that build.
       - run: pnpm build:libs
@@ -51,3 +55,6 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Stop Postgres
+        if: always()
+        run: docker rm -f ci-postgres || true

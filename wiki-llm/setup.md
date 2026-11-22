@@ -29,6 +29,8 @@ Dev with live reload: `pnpm dev` starts the `db` container, then runs the api (`
 
 Tests: `TEST_DATABASE_URL` (optional; DB tests skip without it).
 
+CI (`.github/workflows/ci.yml`) runs on our own self-hosted runner (`runs-on: self-hosted`, labels `self-hosted, linux, x64`, registered for this repository). The runner has no Docker daemon until `start-dockerd` runs, so the job starts the daemon, then Postgres 17 with `docker run` (a service container cannot be used) for `TEST_DATABASE_URL`, and removes it at the end. The repository is public, so the job is skipped for pull requests from forks: they must never execute code on our machine.
+
 The api container receives only the variables it reads (explicit `environment:` in `compose.yaml`), never `POSTGRES_PASSWORD`. It listens on a fixed port 4000 inside the container. The web image takes the build arg `API_INTERNAL_URL` (default `http://localhost:4401`, for running web outside Docker; compose sets `http://api:4000`): Next resolves the `/api/*` rewrite at build time, so changing it needs a rebuild. The `/docs` pages are built from the repo's `docs/` at image build time (editing a doc needs a rebuild of `web`). The `db` port `127.0.0.1:5432` is published for development and tests only; `compose.prod.yaml` removes it.
 
 ## GitHub OAuth app
