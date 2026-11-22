@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { useRequireMe } from "../components/MeProvider";
 import { gateMessage, input, primaryButton } from "../components/ui";
 import { creditsFor, formatNumber, pickDefaultModel, type PublicModel } from "../lib/api";
+import { ModelScores } from "../components/ModelScores";
 import {
   ChatError,
   MAX_MESSAGES,
@@ -283,6 +284,7 @@ export default function Playground() {
           New chat
         </button>
       </div>
+      {model && <ModelScores modelId={model.id} className="-mt-1" />}
 
       {models.failed && models.data === null ? (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-neutral-800 bg-neutral-900/60 p-6 text-center">

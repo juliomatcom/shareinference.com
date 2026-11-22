@@ -6,6 +6,7 @@ import { useRequireMe } from "../components/MeProvider";
 import { STATUS_LABEL, useSharing } from "../components/SharingProvider";
 import { card, gateMessage } from "../components/ui";
 import { MODEL_VRAM_MB, formatNumber, pickDefaultModel } from "../lib/api";
+import { ModelScores } from "../components/ModelScores";
 
 // Provider mode (wiki-llm/web.md): the Web Worker lives in `SharingProvider` (root layout), so sharing keeps running
 // while you navigate. This page only starts and stops it and shows status and usage.
@@ -211,6 +212,7 @@ export default function Share() {
                         {m.priceMultiplier > 1 && ` · pays x${m.priceMultiplier} credits per token`}
                         {` · ${m.workersOnline} online now`}
                       </span>
+                      <ModelScores modelId={m.id} />
                     </span>
                   </label>
                 );
