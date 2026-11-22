@@ -49,6 +49,7 @@ export default function Share() {
         ? "This browser cannot share a GPU."
         : STATUS_LABEL[run];
 
+  const percent = progress ? Math.min(100, Math.max(0, Math.round(progress.value * 100))) : 0;
   const live = run === "ready" || run === "busy"; // green while serving, amber while loading or reconnecting
   const recommendedId = pickDefaultModel(models)?.id;
   const gate = gateMessage(state);
@@ -139,12 +140,22 @@ export default function Share() {
             {!canStart && !active && <p className="text-xs text-neutral-400">{startHint}</p>}
             {run === "loading" && progress && (
               <div>
-                <progress
-                  value={progress.value}
-                  max={1}
-                  className="w-full accent-green-500"
+                <div
+                  role="progressbar"
                   aria-label="Model load progress"
-                />
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={percent}
+                  className="relative h-5 overflow-hidden rounded-full bg-neutral-800"
+                >
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-green-700 to-accent transition-[width] duration-300"
+                    style={{ width: `${percent}%` }}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold tabular-nums text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
+                    {percent}%
+                  </span>
+                </div>
                 <p className="mt-1 truncate text-xs text-neutral-400">{progress.text}</p>
               </div>
             )}
