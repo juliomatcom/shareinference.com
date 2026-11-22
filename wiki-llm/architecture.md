@@ -14,7 +14,7 @@ Compose services: `db` (profile `localdb`, volume `db-data`), `api` (container p
 
 1. `POST /v1/chat/completions` with `Authorization: Bearer <api key>` → key hash lookup → user.
 2. Validate body (zod), resolve public model id → catalog row, apply limits ([api.md](api.md)).
-3. Admission: rate limits by lane; free lane (balance ≤ 0) requires GitHub account age ≥ 30 days ([economy.md](economy.md)). Admitted requests get a `jobs` row (`queued`).
+3. Admission: rate limits by lane; fair lane (balance ≤ 0) requires GitHub account age ≥ 30 days ([economy.md](economy.md)). Admitted requests get a `jobs` row (`queued`).
 4. Route: the dispatcher (`core/dispatcher.ts`, in memory) picks a **random** eligible worker — `ready`, idle, same model, owner ≠ consumer. None → enqueue. No worker of the model online at all, or only workers of the consumer itself (it is never routed to itself) → `503 no_providers` at once, with its own message when only the consumer's own GPU is online.
 5. Dispatch `job` to the worker with only `messages` + whitelisted params. Mark worker busy.
 6. Stream `chunk`s to the consumer (SSE) or buffer them (JSON). On `done`, apply the thinking split (below), settle credits in one transaction, send the provider its `stats`, mark worker idle, dispatch the next queued job.

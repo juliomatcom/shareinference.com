@@ -104,7 +104,11 @@ export async function startChat(
   const balance = (await deps.ledger.balance(user.id)) ?? 0;
   const lane: Lane = balance > 0 ? "priority" : "fair";
   if (lane === "fair" && deps.clock.now().getTime() - user.githubCreatedAt.getTime() < MIN_ACCOUNT_AGE_MS) {
-    return refuse(403, "account_too_new", "Your GitHub account is too new to use the free lane; earn or buy credits");
+    return refuse(
+      403,
+      "account_too_new",
+      "Your GitHub account is too new to use the fair queue; earn credits by sharing your GPU, or try again once it is 30 days old",
+    );
   }
   const release = deps.limiter.acquire(user.id, lane, user.rateLimitOverride);
   if (!release) return refuse(429, "rate_limited", "Rate limit exceeded; slow down and retry later");

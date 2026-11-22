@@ -85,8 +85,8 @@ export default function Home() {
                 Use an OpenAI-compatible API endpoint with open models from your apps.
               </p>
               <ul className="space-y-1.5 text-sm text-neutral-300">
-                <Check>Free tier with fair-queue access from day one</Check>
-                <Check>Spend credits for priority routing at the front of the queue</Check>
+                <Check>Not sharing a GPU? You still get in, through a fair queue, from day one</Check>
+                <Check>Credits you earn by sharing give you priority at the front of the queue</Check>
                 <Check>
                   Standard OpenAI REST and streaming API (
                   <Link href="/docs/api" className=" hover:text-white">

@@ -172,7 +172,7 @@ export function friendlyError(error: ChatError, ctx: { contextWindow: number; fr
       return plain(error.message || "No provider is serving this model right now. Try again later.");
     case "account_too_new":
       return plain(
-        "Your GitHub account is too new for the free lane. Earn credits by sharing your GPU, or buy credits.",
+        "Your GitHub account is too new for the fair queue. Earn credits by sharing your GPU, or try again once your account is 30 days old.",
       );
     case "provider_failed":
       return plain("The provider failed while answering. Try again.");

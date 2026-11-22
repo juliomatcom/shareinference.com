@@ -31,14 +31,14 @@ export function Footer() {
             <circle cx="10" cy="8" r="3.5" />
             <path d="M20 20v-1.5a3.5 3.5 0 0 0-2.6-3.4M15.5 4.6a3.5 3.5 0 0 1 0 6.8" />
           </ClaimIcon>
-          Free users enter a fair queue
+          Not sharing a GPU? Join the fair queue
         </span>
         <span className="hidden text-neutral-700 sm:inline">|</span>
         <span className={claim}>
           <ClaimIcon tint="text-amber-400">
             <path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z" />
           </ClaimIcon>
-          Credit holders jump to the front of the queue
+          Share your GPU, earn credits, skip the queue
         </span>
         <span className="hidden text-neutral-700 sm:inline">|</span>
         <span className={claim}>
