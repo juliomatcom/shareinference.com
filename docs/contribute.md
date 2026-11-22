@@ -1,6 +1,6 @@
 # Share your GPU
 
-ShareInference runs on GPUs that people lend it. When you open the **Share GPU** page and press **Turn ON**, your browser downloads a language model, keeps it on your graphics card, and uses it to generate answers for other users. Every token you serve earns you credits, which you can spend on the OpenAI-compatible API.
+ShareInference runs on GPUs that people lend it. When you open the **Share GPU** page and press **Turn ON**, your browser downloads a language model, keeps it on your graphics card, and uses it to generate answers for other users. Every token you serve earns you credits, which you can use on the OpenAI-compatible API.
 
 ## What you need
 

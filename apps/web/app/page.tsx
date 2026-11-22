@@ -14,7 +14,7 @@ import { DESCRIPTION, SITE_NAME, SITE_URL, absoluteUrl, pageMetadata } from "./l
 export const metadata: Metadata = pageMetadata({
   absoluteTitle: `${SITE_NAME} | Community-Powered Open-Source LLM Inference`,
   description:
-    "Share GPU time from a browser tab with WebGPU, earn credits, and spend them on an OpenAI-compatible API for open-weight LLMs. Free queue included.",
+    "Share GPU time from a browser tab with WebGPU, earn credits, and use them on an OpenAI-compatible API for open-weight LLMs. No credit card needed.",
   path: "/",
 });
 
@@ -80,7 +80,7 @@ export default function Home() {
             </section>
 
             <section className={`${card} flex flex-col gap-4 md:row-span-4 md:grid md:grid-rows-subgrid`}>
-              <h2 className="text-sm font-semibold tracking-wide uppercase">Access inference (spend credits)</h2>
+              <h2 className="text-sm font-semibold tracking-wide uppercase">Access inference (use credits)</h2>
               <p className="text-sm text-neutral-400">
                 Use an OpenAI-compatible API endpoint with open models from your apps.
               </p>

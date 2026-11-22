@@ -30,7 +30,7 @@ const SEO_TITLES: Record<string, string> = {
 const SEO_DESCRIPTIONS: Record<string, string> = {
   api: "Use the ShareInference OpenAI-compatible API: create an API key, set the base URL in any OpenAI client and stream chat completions from open-weight models.",
   contribute:
-    "Share your GPU from a Chrome or Edge tab with WebGPU. Your browser serves an open-weight LLM for others and earns you credits to spend on the API.",
+    "Share your GPU from a Chrome or Edge tab with WebGPU. Your browser serves an open-weight LLM for others and earns you credits to use on the API.",
 };
 
 export const seoTitle = (d: Doc): string => SEO_TITLES[d.slug] ?? d.title;

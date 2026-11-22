@@ -1,20 +1,20 @@
 # FAQ
 
-Short answers to what people usually ask. ShareInference is an **MVP**: it is young, and the limits and prices on this page may change as it grows. The **Limits** section at the bottom is the place to check the current numbers.
+Short answers to what people usually ask. ShareInference is an **MVP**: it is young, and the limits and credit rates on this page may change as it grows. The **Limits** section at the bottom is the place to check the current numbers.
 
 ## The basics
 
 ### What is ShareInference?
 
-An open-source network where people lend GPU time from a browser tab and spend credits on an OpenAI-compatible API. You can also chat with the models in the **Playground** without writing any code. The API guide is in [Using the API](api.md).
+An open-source network where people lend GPU time from a browser tab and use credits on an OpenAI-compatible API. You can also chat with the models in the **Playground** without writing any code. The API guide is in [Using the API](api.md).
 
 ### Do I need a credit card? How do credits work?
 
-No. There is no credit card and no payment of any kind: you sign in with GitHub and that is it. Nobody pays money, and credits cannot be bought. They are earned by sharing your GPU. Everyone can use the network: if you do not share a GPU you have no credits, so your requests wait in a fair queue, slower and with tighter limits, as long as your GitHub account is at least 30 days old. Usage is measured in credits: a request costs 1 credit per input token plus 5 credits per output token, multiplied by the model's price (see **Limits** below), and thinking tokens count as output. Credit holders, the people who share, go to the front of the queue and get higher limits. New accounts start with the sign-up grant, which is 0 credits by default, so the Dashboard shows your real balance.
+No. There is no credit card and no payment of any kind: you sign in with GitHub and that is it. Nobody pays money, and credits cannot be bought. They are earned by sharing your GPU. Everyone can use the network: if you do not share a GPU you have no credits, so your requests wait in a fair queue, slower and with tighter limits, as long as your GitHub account is at least 30 days old. Usage is measured in credits: a request uses 1 credit per input token plus 5 credits per output token, multiplied by the model's credit multiplier (see **Limits** below), and thinking tokens count as output. Credit holders, the people who share, go to the front of the queue and get higher limits. New accounts start with the sign-up grant, which is 0 credits by default, so the Dashboard shows your real balance.
 
 ### How do I earn credits?
 
-Share your GPU: open **Share GPU**, pick a model and press **Turn ON**. Every token your browser generates for someone else earns you the same credits that person pays. The steps are in [Share your GPU](contribute.md).
+Share your GPU: open **Share GPU**, pick a model and press **Turn ON**. Every token your browser generates for someone else earns you the same credits that person uses. The steps are in [Share your GPU](contribute.md).
 
 ### Why can't I use my own GPU for my own requests?
 
@@ -28,7 +28,7 @@ A recent desktop Chrome or Edge with WebGPU, opened over HTTPS (or `localhost`).
 
 ### Which model should I pick on the Share page?
 
-The one marked **Recommended** is a good default. Bigger models need more video memory (the Share page shows how much) and are slower, but the biggest ones pay more per token (see the price multipliers below). Fewer GPUs can run them. If your computer struggles, pick a smaller one. You can only change the model while sharing is off.
+The one marked **Recommended** is a good default. Bigger models need more video memory (the Share page shows how much) and are slower, but the biggest ones earn more credits per token (see the credit multipliers below). Fewer GPUs can run them. If your computer struggles, pick a smaller one. You can only change the model while sharing is off.
 
 ### Is sharing safe for my computer?
 
@@ -50,7 +50,7 @@ It hit the reply limit: the response ends with finish reason `length`. Thinking 
 
 ### What is Thinking?
 
-A switch that lets the model reason step by step before it answers. Answers can be better on hard questions, but they take longer and cost more, because the reasoning tokens are billed like reply tokens. The Playground starts with it off.
+A switch that lets the model reason step by step before it answers. Answers can be better on hard questions, but they take longer and use more credits, because the reasoning tokens count like reply tokens. The Playground starts with it off.
 
 ### What happens when no provider is online?
 
@@ -85,7 +85,7 @@ These are the current MVP defaults. They are set in code, so they can change as 
 | API keys                                                | At most 20 active keys per account                                                    |
 | Sharing                                                 | At most 4 live GPUs per account, one model per browser, one tab per browser           |
 
-Price multipliers (credits per token are multiplied by this):
+Credit multipliers (credits per token are multiplied by this):
 
 | Model            | Multiplier |
 | ---------------- | ---------- |

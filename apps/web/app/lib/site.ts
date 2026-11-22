@@ -5,7 +5,7 @@ export const SITE_URL = (process.env.SITE_URL || "https://shareinference.com").r
 export const SITE_NAME = "ShareInference";
 export const TAGLINE = "Community-powered AI inference";
 export const DESCRIPTION =
-  "Community-powered AI inference. Share GPU time from a browser tab, spend it through an OpenAI-compatible API.";
+  "Community-powered AI inference. Share GPU time from a browser tab, use it through an OpenAI-compatible API.";
 
 /** Keeps a page out of search results and link-following (gated pages: the content is a sign-in panel). */
 export const NO_INDEX: NonNullable<Metadata["robots"]> = { index: false, follow: false };

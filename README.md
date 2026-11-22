@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/juliomatcom/shareinference.com/actions/workflows/ci.yml/badge.svg)](https://github.com/juliomatcom/shareinference.com/actions/workflows/ci.yml)
 
-An open-source, community-powered AI inference network. People share spare GPU compute straight from a browser tab (WebGPU, no install) and earn credits; credits are spent through an OpenAI-compatible API to run open-weight models. The server only orchestrates, routes and keeps the credit ledger — all inference runs in contributors' browsers.
+An open-source, community-powered AI inference network. People share spare GPU compute straight from a browser tab (WebGPU, no install) and earn credits; credits are used through an OpenAI-compatible API to run open-weight models. The server only orchestrates, routes and keeps the credit ledger — all inference runs in contributors' browsers.
 
 ## How it works
 
@@ -21,7 +21,7 @@ flowchart LR
 
     P["<b>Provider</b><br/>a browser tab<br/>WebGPU + open model"]
 
-    C -- "1. asks a question<br/>(spends credits)" --> API
+    C -- "1. asks a question<br/>(uses credits)" --> API
     R -- "2. sends the job" --> P
     P -- "3. streams the answer" --> R
     R -- "4. streams it back" --> C
@@ -31,7 +31,7 @@ flowchart LR
 1. **Providers** open the Share page, turn sharing on, and their browser loads an open-weight model onto the GPU (wllama, an engine we build from our own fork to track llama.cpp; no install). They keep a WebSocket open to the API.
 2. **Consumers** call the OpenAI-compatible API (or the web Playground) with an API key. The model is chosen by the consumer; the provider is chosen blindly by the router and never sees who asked.
 3. The API orchestrates only: it queues the request (priority lane for credit holders, a fair queue for everyone else), sends it to a ready GPU, relays the streamed answer, and settles credits in one database transaction. Inference itself never runs on our servers.
-4. Providers **earn** credits for the tokens they serve (1 per input token, 5 per output token); consumers **spend** them. Credits only move between users, they are never burned.
+4. Providers **earn** credits for the tokens they serve (1 per input token, 5 per output token); consumers **use** them. Credits only move between users, they are never burned.
 
 Prompts are processed in a contributor's browser, so treat them as shared with a stranger's machine; we store only metadata (model, token counts, credits, timings), never prompt or answer text. See [`docs/privacy.md`](docs/privacy.md).
 

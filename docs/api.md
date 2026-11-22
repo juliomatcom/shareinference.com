@@ -4,15 +4,15 @@ ShareInference speaks the OpenAI chat completions protocol, so any OpenAI client
 
 ## Get a key
 
-Sign in, open the dashboard and create an API key under **API keys**. It starts with `si_` and is shown once. Keep it secret: anyone holding it spends your credits.
+Sign in, open the dashboard and create an API key under **API keys**. It starts with `si_` and is shown once. Keep it secret: anyone holding it uses your credits.
 
 The examples use the hosted instance, `https://api.shareinference.com`, and `$SI_KEY` for the key. On your own install use your `API_PUBLIC_URL` instead (`http://localhost:4401` by default).
 
-Want to try it first? The **Playground** (signed in, no key needed) lets you chat with an online model in the browser and shows tokens, latency, speed and credits for every reply. It spends credits exactly like an API call.
+Want to try it first? The **Playground** (signed in, no key needed) lets you chat with an online model in the browser and shows tokens, latency, speed and credits for every reply. It uses credits exactly like an API call.
 
 ## Credits, in short
 
-A request costs `(prompt tokens × 1 + completion tokens × 5) × the model's price multiplier` credits (x1 for most models, x2 for `qwen3.5-9b`, x3 for `inkling-2-mini`) and the provider that served it earns the same amount. You earn credits by sharing your GPU on the **Share** page. Your balance may go below zero: you are then in the _fair lane_, served after everyone with credits, and only if your GitHub account is at least 30 days old. See the [economy](../wiki-llm/economy.md) page for the rules, and the [FAQ](faq.md) for every limit in one table.
+A request uses `(prompt tokens × 1 + completion tokens × 5) × the model's credit multiplier` credits (x1 for most models, x2 for `qwen3.5-9b`, x3 for `inkling-2-mini`) and the provider that served it earns the same amount. You earn credits by sharing your GPU on the **Share** page. Your balance may go below zero: you are then in the _fair lane_, served after everyone with credits, and only if your GitHub account is at least 30 days old. See the [economy](../wiki-llm/economy.md) page for the rules, and the [FAQ](faq.md) for every limit in one table.
 
 ## List models
 
@@ -66,7 +66,7 @@ Python works the same way: `OpenAI(api_key=..., base_url="https://api.shareinfer
 
 `model`, `messages` (roles `system`, `user`, `assistant`; text content only), `stream`, `stream_options.include_usage`, `temperature`, `top_p`, `max_tokens` (default 4096, at most 8192; the prompt plus `max_tokens` must fit the model's context window), `stop`, `presence_penalty`, `frequency_penalty`, `seed`, and `enable_thinking` (also read from `chat_template_kwargs.enable_thinking`). Any other field is rejected with a `400`. Requests are limited to 256 KiB, and the prompt plus `max_tokens` must fit the model's context window.
 
-Models that "think" first put that reasoning in `reasoning_content` (on the message, or as stream deltas) and keep it out of `content`. Thinking tokens are billed as output.
+Models that "think" first put that reasoning in `reasoning_content` (on the message, or as stream deltas) and keep it out of `content`. Thinking tokens count as output.
 
 ## Errors
 
@@ -82,7 +82,7 @@ Errors use the OpenAI shape: `{"error": {"message", "type", "code"}}`.
 | 502    | `provider_failed`              | The provider failed twice before answering (or failed mid-stream)                                               |
 | 503    | `network_busy`, `no_providers` | The queue is full or you waited 300 s; or no provider is online for the model                                   |
 
-If a provider fails after it has started answering, a stream ends with one `data: {"error": ...}` event and you are not charged. If you close the connection, the request is cancelled: before any output arrived you are not charged; after it, you pay for the tokens you received.
+If a provider fails after it has started answering, a stream ends with one `data: {"error": ...}` event and no credits are used. If you close the connection, the request is cancelled: before any output arrived no credits are used; after it, the tokens you received use credits.
 
 ## Request history and votes
 

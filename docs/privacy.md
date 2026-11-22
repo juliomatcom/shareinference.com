@@ -6,7 +6,7 @@ ShareInference runs inference on contributors' machines, so it is worth being pr
 
 ## What we store
 
-- **Your account** (from GitHub sign-in): GitHub numeric id, login, avatar URL and the date the GitHub account was created (used for the free-tier age rule). We ask for the `read:user` scope only and never see your GitHub password.
+- **Your account** (from GitHub sign-in): GitHub numeric id, login, avatar URL and the date the GitHub account was created (used for the fair-queue age rule). We ask for the `read:user` scope only and never see your GitHub password.
 - **Your settings:** a display name (public, defaults to your GitHub login) and an optional device label.
 - **API keys:** only a SHA-256 hash and a short display prefix. The full key is shown once, when you create it.
 - **Credits:** an append-only ledger of balance changes and your balance.

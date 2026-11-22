@@ -282,7 +282,7 @@ export default function Share() {
                           </span>
                           {m.priceMultiplier > 1 && (
                             <span className="rounded-md bg-accent/10 px-2 py-0.5 text-accent">
-                              pays x{m.priceMultiplier} credits per token
+                              earns x{m.priceMultiplier} credits per token
                             </span>
                           )}
                         </span>

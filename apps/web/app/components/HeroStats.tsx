@@ -14,7 +14,7 @@ export function HeroStats() {
         {data ? <AnimatedNumber value={data.tokensServed} /> : "--"} tokens served
       </p>
       <h1 className="mx-auto mt-4 max-w-2xl text-lg font-semibold text-neutral-200 sm:text-xl">
-        Community-powered AI inference: share GPU time from a browser tab, spend it through an OpenAI-compatible API.
+        Community-powered AI inference: share GPU time from a browser tab, use it through an OpenAI-compatible API.
       </h1>
       <p className="mt-3 text-sm text-neutral-400 sm:text-base">
         {data
