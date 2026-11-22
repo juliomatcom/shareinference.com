@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S2 wllama WebGPU spike</title>
+<style>
+:root{color-scheme:dark}
+body{background:#111;color:#ddd;font:14px/1.4 ui-monospace,monospace;max-width:960px;margin:1rem auto;padding:0 16px}
+button{background:#2a2a2a;color:#ddd;border:1px solid #555;padding:.4rem .8rem;margin:0 .5rem .4rem 0;cursor:pointer;font:inherit}
+button:disabled{opacity:.5;cursor:default}
+input,select,textarea{background:#1a1a1a;color:#ddd;border:1px solid #555;padding:.25rem .4rem;font:inherit;box-sizing:border-box}
+textarea{width:100%}
+label{display:inline-block;margin:0 1rem .4rem 0}
+#model{width:100%}
+pre{background:#1a1a1a;padding:.6rem;white-space:pre-wrap;margin:.5rem 0;overflow:auto}
+#log{height:220px}
+#out{min-height:80px;max-height:260px}
+#think{color:#999}
+table{border-collapse:collapse;width:100%;margin:.5rem 0}
+th,td{border:1px solid #333;padding:.2rem .5rem;text-align:left;vertical-align:top;word-break:break-all}
+th{width:34%;color:#9ab;font-weight:normal}
+h4{margin:1rem 0 0;color:#9ab}
+.bad{color:#f66;font-weight:bold}
+.ok{color:#6c6;font-weight:bold}
+.warn{color:#fc6;font-weight:bold}
+</style></head><body>
+<h3>S2: wllama + llama.cpp WebGPU</h3>
+<p><label style="display:block">model: .gguf URL, owner/repo, owner/repo:QUANT, or owner/repo/path/file.gguf
+<input id="model" value="unsloth/Qwen3.5-9B-GGUF:Q4_K_M"></label>
+<label>n_gpu_layers (blank = all, 0 = CPU) <input id="ngl" size="4"></label>
+<label>n_ctx <input id="nctx" type="number" value="16384" style="width:7em"></label></p>
+<p><button id="load">Load</button><button id="unload" disabled>Unload</button>
+Status: <span id="status">idle</span> | <span id="progress">-</span></p>
+<p><textarea id="prompt" rows="4">List the first 10 prime numbers, comma separated.</textarea><br>
+<label>max_tokens <input id="maxtok" type="number" value="256" style="width:6em"></label>
+<label>temperature <input id="temp" type="number" value="0" step="0.1" style="width:5em"></label>
+<label>seed <input id="seed" type="number" value="42" style="width:6em"></label>
+<label>thinking <select id="think-sel"><option value="off" selected>off</option><option value="on">on</option><option value="default">template default</option></select></label></p>
+<p><button id="gen" disabled>Generate</button><button id="stop" disabled>Stop</button>
+<button id="d27" disabled>Run same prompt twice (D27)</button><button id="copy">Copy results JSON</button></p>
+<pre id="think"></pre>
+<pre id="out"></pre>
+<h4>Results</h4>
+<table id="results"></table>
+<h4>Log</h4>
+<pre id="log"></pre>
+<script type="module" src="./app.js"></script>
+</body></html>
