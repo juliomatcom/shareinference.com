@@ -161,13 +161,13 @@ describe.skipIf(!testDatabaseUrl)("ledger on Postgres", () => {
     expect(await checkLedger(granting.core)).toEqual([]);
   });
 
-  it("GET /ledger lists the caller's entries newest first, 20 per page, with the total", async () => {
+  it("GET /ledger lists the caller's entries newest first, 10 per page, with the total", async () => {
     const cookie = await signInAs(h, profile(3, "carol"));
     const me = (await request(h.app).get("/me").set("Cookie", cookie)).body;
     for (let i = 0; i < 105; i++) await adjustBalance(h.core, me.id, 1, `n${i}`);
     const res = await request(h.app).get("/ledger").set("Cookie", cookie);
-    expect(res.body).toMatchObject({ page: 1, pageSize: 20, total: 105 });
-    expect(res.body.entries).toHaveLength(20);
+    expect(res.body).toMatchObject({ page: 1, pageSize: 10, total: 105 });
+    expect(res.body.entries).toHaveLength(10);
     expect(res.body.entries[0].note).toBe("n104");
     expect(res.body.entries[0]).toEqual({
       id: expect.any(Number),
@@ -182,10 +182,10 @@ describe.skipIf(!testDatabaseUrl)("ledger on Postgres", () => {
 
     // Pages continue where the previous one ended; the last one is short; one past the end is empty.
     const page2 = (await request(h.app).get("/ledger?page=2").set("Cookie", cookie)).body.entries;
-    expect(page2[0].note).toBe("n84");
-    const last = (await request(h.app).get("/ledger?page=6").set("Cookie", cookie)).body.entries;
+    expect(page2[0].note).toBe("n94");
+    const last = (await request(h.app).get("/ledger?page=11").set("Cookie", cookie)).body.entries;
     expect(last).toHaveLength(5);
-    expect((await request(h.app).get("/ledger?page=7").set("Cookie", cookie)).body.entries).toEqual([]);
+    expect((await request(h.app).get("/ledger?page=12").set("Cookie", cookie)).body.entries).toEqual([]);
     for (const bad of ["0", "-1", "1.5", "abc", "1000000"])
       expect((await request(h.app).get(`/ledger?page=${bad}`).set("Cookie", cookie)).status).toBe(400);
   });

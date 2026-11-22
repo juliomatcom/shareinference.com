@@ -1,7 +1,7 @@
 import type { Request } from "express";
 
 /** Rows per page on the paged account lists (`/ledger`, `/jobs`); the web dashboard shows the same number. */
-export const PAGE_SIZE = 20;
+export const PAGE_SIZE = 10;
 const MAX_PAGE = 100_000;
 
 /** `?page=N` (1-based, default 1), or `undefined` when it is not a whole number in range. */

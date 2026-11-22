@@ -51,7 +51,7 @@ function usePagedList<K extends string, T>(path: string, key: K, ready: boolean)
   const [page, setPage] = useState(0);
   const [rows, setRows] = useState<T[] | null>(null);
   const [total, setTotal] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(10);
   const [failed, setFailed] = useState(false);
 
   const reload = useCallback(async () => {
